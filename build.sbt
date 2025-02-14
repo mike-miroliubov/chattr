@@ -12,10 +12,20 @@ lazy val root = (project in file("."))
 
 val pekkoVersion = "1.1.3"
 val pekkoHttpVersion = "1.1.0"
-libraryDependencies ++= Seq(
+val commonDependencies = Seq(
   "org.apache.pekko" %% "pekko-actor-typed" % pekkoVersion,
   "org.apache.pekko" %% "pekko-stream" % pekkoVersion,
   "org.apache.pekko" %% "pekko-http" % pekkoHttpVersion,
   "org.apache.pekko" %% "pekko-http-spray-json" % pekkoHttpVersion,
   "ch.qos.logback" % "logback-classic" % "1.5.15"
 )
+
+libraryDependencies ++= commonDependencies
+
+lazy val messenger = project
+  .in(file("messenger"))
+  .settings(
+    name := "messenger",
+    idePackagePrefix := Some("org.chats"),
+    libraryDependencies ++= commonDependencies
+  )
