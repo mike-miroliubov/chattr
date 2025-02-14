@@ -9,7 +9,7 @@ import java.time.format.DateTimeFormatter
 
 
 final case class ChatUser(id: String, username: String, isOnline: Boolean)
-final case class Message(id: String, from: String, to: String, text: String, createdAt: LocalDateTime)
+final case class Message(id: String, from: String, text: String, createdAt: LocalDateTime)
 final case class Chat(id: String, name: String, lastText: String)
 final case class Chats(chats: Seq[Chat])
 final case class ChatContent(messages: Seq[Message])
@@ -28,6 +28,7 @@ trait WhisperJsonProtocol extends DefaultJsonProtocol {
   
   implicit val chatFormat: RootJsonFormat[Chat] = jsonFormat3(Chat.apply)
   implicit val chatsFormat: RootJsonFormat[Chats] = jsonFormat1(Chats.apply)
-  implicit val messageFormat: RootJsonFormat[Message] = jsonFormat5(Message.apply)
+  implicit val messageFormat: RootJsonFormat[Message] = jsonFormat4(Message.apply)
   implicit val chatContentFormat: RootJsonFormat[ChatContent] = jsonFormat1(ChatContent.apply)
+  implicit val apiErrorFormat: RootJsonFormat[ApiError] = jsonFormat2(ApiError.apply)
 }

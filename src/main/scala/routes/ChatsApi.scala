@@ -1,12 +1,13 @@
 package org.chats
 package routes
 
-import dto.{ChatContent, Chats, WhisperJsonProtocol}
+import config.chatService
+import dto.{ChatContent, Chats, Errors, WhisperJsonProtocol}
+import routes.Api.{JavaUUID, complete, concat, path, pathEnd, pathPrefix}
 
 import org.apache.pekko.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.apache.pekko.http.scaladsl.server.{Directives, Route}
-import org.chats.config.chatService
-import org.chats.routes.Api.{JavaUUID, complete, concat, path, pathEnd, pathPrefix}
 
 object ChatsApi extends Directives with SprayJsonSupport with WhisperJsonProtocol {
   val routes: Route = pathPrefix("chats") {
@@ -14,8 +15,12 @@ object ChatsApi extends Directives with SprayJsonSupport with WhisperJsonProtoco
       (pathEnd & get) {
         complete(Chats(chatService.getChats))
       },
+
       (path(JavaUUID) & get) { uuid =>
-        complete(ChatContent(chatService.getChatMessages(uuid.toString)))
+        chatService.getChatMessages(uuid.toString) match {
+          case Some(messages) => complete(ChatContent(messages))
+          case None => complete(StatusCodes.BadRequest, Errors.ObjectNotFoundError)
+        }
       }
     )
   }

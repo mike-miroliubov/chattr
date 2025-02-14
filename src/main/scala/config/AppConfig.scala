@@ -5,5 +5,5 @@ import service.ChatServiceImpl
 
 import org.chats.repository.InMemoryRepository
 
-val repository = InMemoryRepository()
-val chatService = ChatServiceImpl(repository, repository)
+lazy val repository = InMemoryRepository()
+lazy val chatService = ChatServiceImpl(repository, repository)
