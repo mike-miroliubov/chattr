@@ -1,8 +1,7 @@
 package org.chats
 package config
 
-import service.ChatServiceImpl
-
+import org.chats.service.ChatServiceImpl
 import org.chats.repository.InMemoryRepository
 
 lazy val repository = InMemoryRepository()

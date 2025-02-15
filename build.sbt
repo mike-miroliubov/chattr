@@ -6,6 +6,7 @@ ThisBuild / scalaVersion := "3.3.5"
 
 lazy val root = (project in file("."))
   .aggregate(messenger)
+  .aggregate(chatsApi)
   .settings(
     name := "web-chat2",
     idePackagePrefix := Some("org.chats"),
@@ -28,6 +29,14 @@ lazy val messenger = project
   .in(file("messenger"))
   .settings(
     name := "messenger",
+    idePackagePrefix := Some("org.chats"),
+    libraryDependencies ++= commonDependencies,
+  )
+
+lazy val chatsApi = project
+  .in(file("chats-api"))
+  .settings(
+    name := "chats-api",
     idePackagePrefix := Some("org.chats"),
     libraryDependencies ++= commonDependencies,
   )

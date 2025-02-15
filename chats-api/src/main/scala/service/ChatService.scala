@@ -2,8 +2,7 @@ package org.chats
 package service
 
 import dto.{Chat, Message}
-
-import org.chats.repository.{ChatRepository, MessageRepository}
+import repository.{ChatRepository, MessageRepository}
 
 trait ChatService {
   def getChats: Seq[Chat]

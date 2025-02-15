@@ -1,8 +1,8 @@
 package org.chats
 package dto
 
-import spray.json.{DefaultJsonProtocol, JsString, JsValue, JsonFormat, RootJsonFormat}
 import spray.json.DefaultJsonProtocol.jsonFormat3
+import spray.json.{DefaultJsonProtocol, JsString, JsValue, JsonFormat, RootJsonFormat}
 
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter

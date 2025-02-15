@@ -2,9 +2,9 @@ package org.chats
 package repository
 
 import dto.{Chat, Message}
+import repository.InMemoryRepository.logger
 
 import org.apache.pekko.event.slf4j.Logger
-import org.chats.repository.InMemoryRepository.logger
 
 import java.time.LocalDateTime
 
