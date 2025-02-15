@@ -3,12 +3,16 @@ package org.chats
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.http.scaladsl.Http
+import org.chats.service.ClientManagerActor
 
 import scala.concurrent.ExecutionContextExecutor
 import scala.io.StdIn
 import scala.util.Failure
 
-implicit val system: ActorSystem[Any] = ActorSystem(Behaviors.empty, "my-system")
+// This was ActorSystem[Any] in the Pekko Http docs, not sure if its okay to reuse this system for application's actors
+// or we need to build a new one. This somehow works for now.
+implicit val system: ActorSystem[ClientManagerActor.Command] = ActorSystem(
+  Behaviors.setup(context => ClientManagerActor(context)), "my-system")
 
 object MainMessenger {
   def main(args: Array[String]): Unit = {

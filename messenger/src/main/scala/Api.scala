@@ -2,16 +2,23 @@ package org.chats
 
 import org.apache.pekko.NotUsed
 import org.apache.pekko.http.scaladsl.model.HttpMethods.GET
-import org.apache.pekko.http.scaladsl.model.{AttributeKeys, HttpRequest, HttpResponse, Uri}
 import org.apache.pekko.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
+import org.apache.pekko.http.scaladsl.model.{AttributeKeys, HttpRequest, HttpResponse, Uri}
 import org.apache.pekko.http.scaladsl.server.Directives
 import org.apache.pekko.stream.scaladsl.{Flow, Sink, Source}
+import org.chats.service.ClientManagerActor
 
 object Api extends Directives {
   def handleWsRequest(request: HttpRequest): HttpResponse = request match {
+    // WS connections are only allowed at /api/connect endpoint
     case req @ HttpRequest(GET, Uri.Path("/api/connect"), _, _, _) =>
+      // handle websocket upgrade event
       req.attribute(AttributeKeys.webSocketUpgrade) match {
-        case Some(upgrade) => upgrade.handleMessages(greeterWebSocketService)
+        case Some(upgrade) => {
+          // spawn a new client actor, we will use it to communicate with this web socket later
+          system ! ClientManagerActor.ConnectClient("new-client")
+          upgrade.handleMessages(greeterWebSocketService)
+        }
         case None => HttpResponse(400, entity = "Not a valid websocket request!")
       }
     case r: HttpRequest =>
