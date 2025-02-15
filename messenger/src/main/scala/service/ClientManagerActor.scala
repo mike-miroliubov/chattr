@@ -3,6 +3,8 @@ package service
 
 import org.apache.pekko.actor.typed.{ActorRef, Behavior, PostStop, Signal}
 import org.apache.pekko.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
+import org.apache.pekko.stream.scaladsl.SourceQueueWithComplete
+import org.chats.service.ClientActor.OutgoingMessage
 import org.chats.service.ClientManagerActor.ConnectClient
 
 /**
@@ -11,8 +13,8 @@ import org.chats.service.ClientManagerActor.ConnectClient
 class ClientManagerActor(context: ActorContext[ClientManagerActor.Command]) extends AbstractBehavior[ClientManagerActor.Command](context) {
   context.log.info("Messenger Application started")
   override def onMessage(msg: ClientManagerActor.Command): Behavior[ClientManagerActor.Command] = msg match {
-    case ConnectClient(userId, replyTo) =>
-      val newClient = context.spawn(Behaviors.setup(context => ClientActor(context, userId)), userId)
+    case ConnectClient(userId, queue, replyTo) =>
+      val newClient = context.spawn(Behaviors.setup(context => ClientActor(context, queue, userId)), userId)
       replyTo ! newClient
       this
   }
@@ -26,5 +28,5 @@ class ClientManagerActor(context: ActorContext[ClientManagerActor.Command]) exte
 
 object ClientManagerActor {
   sealed trait Command
-  final case class ConnectClient(userId: String, replyTo: ActorRef[ActorRef[ClientActor.Command]]) extends Command
+  final case class ConnectClient(userId: String, outboundQueue: SourceQueueWithComplete[OutgoingMessage], replyTo: ActorRef[ActorRef[ClientActor.Command]]) extends Command
 }
