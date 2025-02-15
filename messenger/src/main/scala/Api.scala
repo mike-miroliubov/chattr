@@ -7,7 +7,7 @@ import org.apache.pekko.NotUsed
 import org.apache.pekko.actor.typed.ActorRef
 import org.apache.pekko.actor.typed.scaladsl.AskPattern.*
 import org.apache.pekko.http.scaladsl.model.HttpMethods.GET
-import org.apache.pekko.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
+import org.apache.pekko.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage, WebSocketUpgrade}
 import org.apache.pekko.http.scaladsl.model.{AttributeKeys, HttpRequest, HttpResponse, Uri}
 import org.apache.pekko.http.scaladsl.server.Directives
 import org.apache.pekko.stream.OverflowStrategy
@@ -23,25 +23,7 @@ object Api extends Directives {
     case req @ HttpRequest(GET, Uri.Path("/api/connect"), _, _, _) =>
       // handle websocket upgrade event
       req.attribute(AttributeKeys.webSocketUpgrade) match {
-        case Some(upgrade) =>
-          // Create a source, backed by a queue so we could connect actor with a web socket.
-          // Pre-materialize the source to get that queue, we will pass it to an actor
-          val (outQueue: SourceQueueWithComplete[OutgoingMessage], outSrc: Source[OutgoingMessage, NotUsed]) =
-            Source.queue[OutgoingMessage](16, OverflowStrategy.fail).preMaterialize()
-
-          // spawn a new client actor, we will use it to communicate with this web socket later
-          val clientActorFuture = system.ask(ref => ClientManagerActor.ConnectClient("new-client", outQueue, ref))(Timeout(3, TimeUnit.SECONDS))
-
-          clientActorFuture.map { actor =>
-            system.log.info("Created new actor {}", actor)
-            // Scala cannot properly infer types here for some reason (probably because of a contravariant ActorRef[-T])
-            // So we need this ugly casting
-            actor.asInstanceOf[ActorRef[ClientActor.Command]] ! IncomingMessage("", "Joined the chat", "", "")
-
-            upgrade.handleMessagesWithSinkSource(
-              Sink.foreach[Message](handleIncomingMessage(actor.asInstanceOf[ActorRef[ClientActor.Command]], "new-client")),
-              outSrc.map(o => TextMessage(o.text)))
-          }
+        case Some(upgrade) => handleWebSocketUpgrade(upgrade)
         case None => Future {
           HttpResponse(400, entity = "Not a valid websocket request!")
         }
@@ -51,6 +33,27 @@ object Api extends Directives {
       Future {
         HttpResponse(404, entity = "Unknown resource!")
       }
+  }
+
+  private def handleWebSocketUpgrade(upgrade: WebSocketUpgrade): Future[HttpResponse] = {
+    // Create a source, backed by a queue so we could connect actor with a web socket.
+    // Pre-materialize the source to get that queue, we will pass it to an actor
+    val (outQueue: SourceQueueWithComplete[OutgoingMessage], outSrc: Source[OutgoingMessage, NotUsed]) =
+      Source.queue[OutgoingMessage](16, OverflowStrategy.fail).preMaterialize()
+
+    // spawn a new client actor, we will use it to communicate with this web socket later
+    val clientActorFuture = system.ask(ref => ClientManagerActor.ConnectClient("new-client", outQueue, ref))(Timeout(3, TimeUnit.SECONDS))
+
+    clientActorFuture.map { actor =>
+      system.log.info("Created new actor {}", actor)
+      // Scala cannot properly infer types here for some reason (probably because of a contravariant ActorRef[-T])
+      // So we need this ugly casting
+      actor.asInstanceOf[ActorRef[ClientActor.Command]] ! IncomingMessage("", "Joined the chat", "", "")
+
+      upgrade.handleMessagesWithSinkSource(
+        Sink.foreach[Message](handleIncomingMessage(actor.asInstanceOf[ActorRef[ClientActor.Command]], "new-client")),
+        outSrc.map(o => TextMessage(o.text)))
+    }
   }
 
   private def handleIncomingMessage(actor: ActorRef[ClientActor.Command], userId: String)(msg: Message): Unit = msg match {
