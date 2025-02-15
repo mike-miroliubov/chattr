@@ -14,9 +14,10 @@ import scala.util.Failure
 implicit val system: ActorSystem[ClientManagerActor.Command] = ActorSystem(
   Behaviors.setup(context => ClientManagerActor(context)), "my-system")
 
+implicit val executionContext: ExecutionContextExecutor = system.executionContext
+
 object MainMessenger {
   def main(args: Array[String]): Unit = {
-    implicit val executionContext: ExecutionContextExecutor = system.executionContext
 
     println("Starting messenger server")
     val host = "localhost"
