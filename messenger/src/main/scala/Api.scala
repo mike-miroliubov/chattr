@@ -1,21 +1,35 @@
 package org.chats
 
+import org.apache.pekko.NotUsed
+import org.apache.pekko.http.scaladsl.model.HttpMethods.GET
+import org.apache.pekko.http.scaladsl.model.{AttributeKeys, HttpRequest, HttpResponse, Uri}
 import org.apache.pekko.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import org.apache.pekko.http.scaladsl.server.Directives
 import org.apache.pekko.stream.scaladsl.{Flow, Sink, Source}
 
 object Api extends Directives {
-  val routes = pathPrefix("api") {
-    path("connect") {
-      handleWebSocketMessages(wsConnect)
-    }
+  def handleWsRequest(request: HttpRequest): HttpResponse = request match {
+    case req @ HttpRequest(GET, Uri.Path("/api/connect"), _, _, _) =>
+      req.attribute(AttributeKeys.webSocketUpgrade) match {
+        case Some(upgrade) => upgrade.handleMessages(greeterWebSocketService)
+        case None => HttpResponse(400, entity = "Not a valid websocket request!")
+      }
+    case r: HttpRequest =>
+      r.discardEntityBytes() // important to drain incoming HTTP Entity stream
+      HttpResponse(404, entity = "Unknown resource!")
   }
 
-  def wsConnect: Flow[Message, Message, Any] = Flow[Message].mapConcat {
-    case m: TextMessage => List(TextMessage(Source.single("You said: ") ++ m.textStream))
-    case m: BinaryMessage => {
-      m.dataStream.runWith(Sink.ignore)
-      Nil
-    }
-  }
+  private val greeterWebSocketService: Flow[Message, TextMessage, NotUsed] =
+    Flow[Message]
+      .mapConcat {
+        // we match but don't actually consume the text message here,
+        // rather we simply stream it back as the tail of the response
+        // this means we might start sending the response even before the
+        // end of the incoming message has been received
+        case tm: TextMessage => TextMessage(Source.single("You said: ") ++ tm.textStream) :: Nil
+        case bm: BinaryMessage =>
+          // ignore binary messages but drain content to avoid the stream being clogged
+          bm.dataStream.runWith(Sink.ignore)
+          Nil
+      }
 }

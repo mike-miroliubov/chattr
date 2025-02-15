@@ -2,7 +2,7 @@ package org.chats
 package routes
 
 import config.chatService
-import dto.{ChatContent, Chats, Errors, WhisperJsonProtocol}
+import dto.{ApiError, ChatContent, Chats, Errors, Message, WhisperJsonProtocol}
 import routes.Api.{JavaUUID, complete, concat, path, pathEnd, pathPrefix}
 
 import org.apache.pekko.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
@@ -18,8 +18,8 @@ object ChatsApi extends Directives with SprayJsonSupport with WhisperJsonProtoco
 
       (path(JavaUUID) & get) { uuid =>
         chatService.getChatMessages(uuid.toString) match {
-          case Some(messages) => complete(ChatContent(messages))
-          case None => complete(StatusCodes.BadRequest, Errors.ObjectNotFoundError)
+          case Right(messages) => complete(ChatContent(messages))
+          case Left(error) => complete(StatusCodes.BadRequest, error)
         }
       }
     )
