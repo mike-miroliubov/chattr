@@ -20,7 +20,8 @@ val commonDependencies = Seq(
   "org.apache.pekko" %% "pekko-stream" % pekkoVersion,
   "org.apache.pekko" %% "pekko-http" % pekkoHttpVersion,
   "org.apache.pekko" %% "pekko-http-spray-json" % pekkoHttpVersion,
-  "ch.qos.logback" % "logback-classic" % "1.5.15"
+  "ch.qos.logback" % "logback-classic" % "1.5.15",
+  "org.apache.pekko" %% "pekko-stream-typed" % pekkoVersion
 )
 
 libraryDependencies ++= commonDependencies

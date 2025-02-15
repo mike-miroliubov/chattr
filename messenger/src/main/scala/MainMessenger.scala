@@ -22,7 +22,7 @@ object MainMessenger {
     println("Starting messenger server")
     val host = "localhost"
     val port = 8081
-    val binding = Http().newServerAt(host, port).bindSync(Api.handleWsRequest)
+    val binding = Http().newServerAt(host, port).bind(Api.handleWsRequest)
 
     StdIn.readLine() // let it run until user presses return
 
