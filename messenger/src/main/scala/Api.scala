@@ -1,20 +1,19 @@
 package org.chats
 
-import service.ClientActor.{IncomingMessage, OutgoingMessage}
+import service.ClientActor.IncomingMessage
 import service.{ClientActor, ClientManagerActor}
 
-import org.apache.pekko.{Done, NotUsed}
+import org.apache.pekko.NotUsed
 import org.apache.pekko.actor.PoisonPill
 import org.apache.pekko.actor.typed.ActorRef
 import org.apache.pekko.actor.typed.scaladsl.AskPattern.*
 import org.apache.pekko.http.scaladsl.model.HttpMethods.GET
-import org.apache.pekko.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage, WebSocketUpgrade}
+import org.apache.pekko.http.scaladsl.model.ws.{Message, TextMessage, WebSocketUpgrade}
 import org.apache.pekko.http.scaladsl.model.{AttributeKeys, HttpRequest, HttpResponse, Uri}
 import org.apache.pekko.http.scaladsl.server.Directives
 import org.apache.pekko.stream.OverflowStrategy
-import org.apache.pekko.stream.scaladsl.{Sink, Source, SourceQueueWithComplete}
-import org.apache.pekko.stream.typed.scaladsl.ActorSource
-import org.apache.pekko.stream.typed.scaladsl.ActorSink
+import org.apache.pekko.stream.scaladsl.{Sink, Source}
+import org.apache.pekko.stream.typed.scaladsl.{ActorSink, ActorSource}
 import org.apache.pekko.util.Timeout
 
 import java.util.concurrent.TimeUnit
@@ -39,19 +38,14 @@ object Api extends Directives {
   }
 
   private def handleWebSocketUpgrade(upgrade: WebSocketUpgrade): Future[HttpResponse] = {
-//    val (outputActor, source) = ActorSource.actorRef[Message](
-//      completionMatcher = Done => {},
-//      failureMatcher = {
-//        case bm: BinaryMessage => RuntimeException()
-//      },
-//      bufferSize = 256,
-//      overflowStrategy = OverflowStrategy.dropHead
-//    ).preMaterialize()
-
     // Create a source, backed by an actor so we could send messages to websocket
-    // Pre-materialize the source to get the actor, we will pass it to an actor.
-    // There's probably a much better way of doing this
-    val (outputActor, source) = Source.actorRef[Message](256, OverflowStrategy.dropHead).preMaterialize()
+    // Pre-materialize the source to get the actor, we will pass it to our actor.
+    val (outputActor, source) = ActorSource.actorRef[Message](
+      completionMatcher = PartialFunction.empty,
+      failureMatcher = PartialFunction.empty[Message, Throwable],
+      bufferSize = 256,
+      overflowStrategy = OverflowStrategy.dropHead
+    ).preMaterialize()
 
     // spawn a new client actor, we will use it to communicate with this web socket later
     val clientActorFuture = system.ask(ref => ClientManagerActor.ConnectClient("new-client", ref))(Timeout(3, TimeUnit.SECONDS))
@@ -66,26 +60,16 @@ object Api extends Directives {
       // So we need this ugly casting
       clientActor.asInstanceOf[ActorRef[ClientActor.Command]] ! IncomingMessage("", "Joined the chat", "", "")
 
-      val sink: Sink[Message | PoisonPill.type, NotUsed] = ActorSink.actorRef(wsActor.asInstanceOf[ActorRef[Message | PoisonPill]], PoisonPill, e => {
-        system.log.error("Exception when passing input messages", e)
-        PoisonPill
-      })
+      val sink: Sink[Message | PoisonPill.type, NotUsed] = ActorSink.actorRef(wsActor.asInstanceOf[ActorRef[Message | PoisonPill]],
+        onCompleteMessage = PoisonPill, // TODO: this doesn't seem to be working
+        onFailureMessage = e => {
+          system.log.error("Exception when passing input messages", e)
+          PoisonPill
+        })
 
       outputActor ! TextMessage("hello")
 
-      upgrade.handleMessagesWithSinkSource(
-        sink,
-        //Sink.foreach[Message](handleIncomingMessage(clientActor.asInstanceOf[ActorRef[ClientActor.Command]], "new-client")),
-        //outSrc.map(o => TextMessage(o.text))
-        source
-      )
+      upgrade.handleMessagesWithSinkSource(sink, source)
     }
-  }
-
-  private def handleIncomingMessage(actor: ActorRef[ClientActor.Command], userId: String)(msg: Message): Unit = msg match {
-    case tm: TextMessage => actor ! IncomingMessage("", tm.getStrictText, userId, "")
-    case bm: BinaryMessage =>
-      // ignore binary messages but drain content to avoid the stream being clogged
-      bm.dataStream.runWith(Sink.ignore)
   }
 }

@@ -40,6 +40,6 @@ object ClientManagerActor {
   final case class ConnectClient(userId: String,
                                  replyTo: ActorRef[ActorRef[ClientActor.Command]]) extends Command
   final case class ConnectWs(userId: String,
-                             outputActorSource: UntypedActorRef,
+                             outputActorSource: ActorRef[Message],
                              replyTo: ActorRef[ActorRef[Message | PoisonPill]]) extends Command
 }
