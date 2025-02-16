@@ -38,43 +38,47 @@ object Api extends Directives {
 
   private def handleWebSocketUpgrade(upgrade: WebSocketUpgrade): Future[HttpResponse] = {
     // Create a source, backed by an actor so we could send messages to websocket
-    // Pre-materialize the source to get the actor, we will pass it to our actor.
+    // We'll create an actor that can handle our DTO objects: OutgoingMessage-s and ServiceCommand-s.
+    // Pre-materialize the source to get the actor, we will pass it to our ClientActor.
     val (outputActor, outputMessageSource) = ActorSource.actorRef[ClientActor.OutgoingMessage | ClientActor.ServiceCommand](
       completionMatcher = {
         case ClientActor.ConnectionClosed =>
-          system.log.info("Closed WS stream")
+          system.log.debug("Closing WS stream")
       }, // maybe handle graceful logout
       failureMatcher = PartialFunction.empty[ClientActor.OutgoingMessage | ClientActor.ServiceCommand, Throwable],
       bufferSize = 256,
       overflowStrategy = OverflowStrategy.dropHead
     ).preMaterialize()
 
-    // Map DTO messages to WS contract
+    // To handle websocket, we need a source that produces WS Message-s. Map our DTO messages to WS contract.
     val wsOutputMessageSource = outputMessageSource.map {
       case OutgoingMessage(_, text, _) => TextMessage(text)
     }
 
-    // spawn a new client actor and actors needed to communicate with this web socket
     for {
-      clientActor <- system.ask(ref => ClientManagerActor.ConnectClient("new-client", outputActor, ref))(Timeout(3, TimeUnit.SECONDS))
+      // Spawn a new client actor, pass it the outputActor to communicate with the web socket.
+      // Spawning is done by asking the system (ClientManagerActor) for a new actor by passing a ConnectClient message. This returns a Future of a new ClientActor
+      // Scala cannot properly infer types here for some reason (probably because of a contravariant ActorRef[-T]).
+      // We need to help it.
+      clientActor <- system.ask[ActorRef[ClientActor.Command]](ref => ClientManagerActor.ConnectClient("new-client", outputActor, ref))(Timeout(3, TimeUnit.SECONDS))
     } yield {
-      system.log.info("Created new actors: {}, {}, {}, {}", clientActor, outputActor)
-      // Scala cannot properly infer types here for some reason (probably because of a contravariant ActorRef[-T])
-      // So we need this ugly casting
-      clientActor.asInstanceOf[ActorRef[ClientActor.Command]] ! GreetingsMessage
+      system.log.debug("Created new actors: {}, {}", clientActor, outputActor)
+      clientActor ! GreetingsMessage
 
+      // Sink WS messages to an actor by prepending a mapping Message -> IncomingMessage flow to an actor sink
       val wsInputMessageSink = Flow[Message]
-        .mapConcat {
+        .mapConcat { // ignore binary messages, additionally draining them. mapConcat unpacks Options.
           case m: TextMessage => Some(m)
           case b: BinaryMessage =>
             b.dataStream.runWith(Sink.ignore)
             None
-        }.
-        map(m => IncomingMessage("", m.getStrictText, "", ""))
-        .to(ActorSink.actorRef(clientActor.asInstanceOf[ActorRef[ClientActor.Command]],
-          onCompleteMessage = {
-            ClientActor.ConnectionClosed
-          },
+        }
+        .map(m => IncomingMessage("", m.getStrictText, "", "")) // transform WS message to an IncomingMessage DTO
+        .to(ActorSink.actorRef( // process messages with a ClientActor by dumping to an ActorSink
+          clientActor,
+          // when the client wants to disconnect, this message will be passed to the ClientActor,
+          // it must relay it to the outputActor to close the WS stream
+          onCompleteMessage = ClientActor.ConnectionClosed,
           onFailureMessage = e => {
             system.log.error("Exception when passing input messages", e)
             ClientActor.ConnectionClosed

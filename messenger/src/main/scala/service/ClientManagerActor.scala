@@ -18,7 +18,7 @@ class ClientManagerActor(context: ActorContext[ClientManagerActor.Command]) exte
       val actor = context.child(userId)
         .getOrElse(context.spawn(Behaviors.setup(context => ClientActor(context, userId, output)), userId))
         .unsafeUpcast[ClientActor.Command]
-      replyTo ! actor
+      replyTo ! actor  // for the ask pattern we should return the newly created actor to the caller
       this
   }
 

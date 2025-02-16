@@ -1,9 +1,10 @@
 package org.chats
 
+import service.ClientManagerActor
+
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.http.scaladsl.Http
-import org.chats.service.ClientManagerActor
 
 import scala.concurrent.ExecutionContextExecutor
 import scala.io.StdIn
@@ -16,7 +17,7 @@ implicit val system: ActorSystem[ClientManagerActor.Command] = ActorSystem(
 
 implicit val executionContext: ExecutionContextExecutor = system.executionContext
 
-object MainMessenger {
+object MessengerMain {
   def main(args: Array[String]): Unit = {
 
     println("Starting messenger server")
