@@ -1,17 +1,17 @@
 package org.chats
 
-import service.ClientActor.{GreetingsMessage, OutgoingMessage}
-import service.{ClientActor, ClientManagerActor, WsClientInputActor, WsClientOutputActor}
+import service.ClientActor.{GreetingsMessage, IncomingMessage, OutgoingMessage, ServiceCommand}
+import service.{ClientActor, ClientManagerActor}
 
 import org.apache.pekko.NotUsed
 import org.apache.pekko.actor.typed.ActorRef
 import org.apache.pekko.actor.typed.scaladsl.AskPattern.*
 import org.apache.pekko.http.scaladsl.model.HttpMethods.GET
-import org.apache.pekko.http.scaladsl.model.ws.{Message, WebSocketUpgrade}
+import org.apache.pekko.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage, WebSocketUpgrade}
 import org.apache.pekko.http.scaladsl.model.{AttributeKeys, HttpRequest, HttpResponse, Uri}
 import org.apache.pekko.http.scaladsl.server.Directives
 import org.apache.pekko.stream.OverflowStrategy
-import org.apache.pekko.stream.scaladsl.{Sink, Source}
+import org.apache.pekko.stream.scaladsl.{Flow, Sink, Source}
 import org.apache.pekko.stream.typed.scaladsl.{ActorSink, ActorSource}
 import org.apache.pekko.util.Timeout
 
@@ -39,37 +39,48 @@ object Api extends Directives {
   private def handleWebSocketUpgrade(upgrade: WebSocketUpgrade): Future[HttpResponse] = {
     // Create a source, backed by an actor so we could send messages to websocket
     // Pre-materialize the source to get the actor, we will pass it to our actor.
-    val (outputActor, source) = ActorSource.actorRef[Message](
+    val (outputActor, outputMessageSource) = ActorSource.actorRef[ClientActor.OutgoingMessage | ClientActor.ServiceCommand](
       completionMatcher = {
-        case m if m.asTextMessage.getStrictText == "CLOSED!" =>
+        case ClientActor.ConnectionClosed =>
           system.log.info("Closed WS stream")
       }, // maybe handle graceful logout
-      failureMatcher = PartialFunction.empty[Message, Throwable],
+      failureMatcher = PartialFunction.empty[ClientActor.OutgoingMessage | ClientActor.ServiceCommand, Throwable],
       bufferSize = 256,
       overflowStrategy = OverflowStrategy.dropHead
     ).preMaterialize()
 
+    // Map DTO messages to WS contract
+    val wsOutputMessageSource = outputMessageSource.map {
+      case OutgoingMessage(_, text, _) => TextMessage(text)
+    }
+
     // spawn a new client actor and actors needed to communicate with this web socket
     for {
-      wsOutputActor <- system.ask(ref => ClientManagerActor.ConnectWsOutput("new-client", outputActor, ref))(Timeout(3, TimeUnit.SECONDS))
-      clientActor <- system.ask(ref => ClientManagerActor.ConnectClient("new-client", wsOutputActor.asInstanceOf[ActorRef[OutgoingMessage | WsClientOutputActor.Command]], ref))(Timeout(3, TimeUnit.SECONDS))
-      wsInputActor <- system.ask(ref => ClientManagerActor.ConnectWsInput("new-client", clientActor.asInstanceOf[ActorRef[ClientActor.Command]], ref))(Timeout(3, TimeUnit.SECONDS))
+      clientActor <- system.ask(ref => ClientManagerActor.ConnectClient("new-client", outputActor, ref))(Timeout(3, TimeUnit.SECONDS))
     } yield {
-      system.log.info("Created new actors: {}, {}, {}, {}", clientActor, wsInputActor, wsOutputActor, outputActor)
+      system.log.info("Created new actors: {}, {}, {}, {}", clientActor, outputActor)
       // Scala cannot properly infer types here for some reason (probably because of a contravariant ActorRef[-T])
       // So we need this ugly casting
       clientActor.asInstanceOf[ActorRef[ClientActor.Command]] ! GreetingsMessage
 
-      val sink: Sink[Message | WsClientInputActor.Command, NotUsed] = ActorSink.actorRef(wsInputActor.asInstanceOf[ActorRef[Message | WsClientInputActor.Command]],
-        onCompleteMessage = {
-          WsClientInputActor.ConnectionClosed
-        },
-        onFailureMessage = e => {
-          system.log.error("Exception when passing input messages", e)
-          WsClientInputActor.ConnectionClosed
-        })
+      val wsInputMessageSink = Flow[Message]
+        .mapConcat {
+          case m: TextMessage => Some(m)
+          case b: BinaryMessage =>
+            b.dataStream.runWith(Sink.ignore)
+            None
+        }.
+        map(m => IncomingMessage("", m.getStrictText, "", ""))
+        .to(ActorSink.actorRef(clientActor.asInstanceOf[ActorRef[ClientActor.Command]],
+          onCompleteMessage = {
+            ClientActor.ConnectionClosed
+          },
+          onFailureMessage = e => {
+            system.log.error("Exception when passing input messages", e)
+            ClientActor.ConnectionClosed
+          }))
 
-      upgrade.handleMessagesWithSinkSource(sink, source)
+      upgrade.handleMessagesWithSinkSource(wsInputMessageSink, wsOutputMessageSource)
     }
   }
 }

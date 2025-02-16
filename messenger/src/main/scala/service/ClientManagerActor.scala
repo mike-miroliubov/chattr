@@ -2,12 +2,10 @@ package org.chats
 package service
 
 import service.ClientActor.OutgoingMessage
-import service.ClientManagerActor.{ConnectClient, ConnectWsInput, ConnectWsOutput}
+import service.ClientManagerActor.ConnectClient
 
-import org.apache.pekko.actor.PoisonPill
 import org.apache.pekko.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
 import org.apache.pekko.actor.typed.{ActorRef, Behavior, PostStop, Signal}
-import org.apache.pekko.http.scaladsl.model.ws.Message
 
 /**
  * This is the root class of all client actors. It handles creation of new actors as users connect.
@@ -22,23 +20,6 @@ class ClientManagerActor(context: ActorContext[ClientManagerActor.Command]) exte
         .unsafeUpcast[ClientActor.Command]
       replyTo ! actor
       this
-      
-    case ConnectWsInput(userId, output, replyTo) =>
-      val actor = context.child(s"ws-in-$userId")
-        .getOrElse(context.spawn(Behaviors.setup(context => WsClientInputActor(context, output)), s"ws-in-$userId"))
-        .unsafeUpcast[Message | PoisonPill]
-      replyTo ! actor
-      this
-      
-    case ConnectWsOutput(userId, output, replyTo) =>
-      val actor = context.child(s"ws-out-$userId") match
-        case Some(value) =>
-          val existingActor = value.unsafeUpcast[OutgoingMessage | WsClientOutputActor.Command]
-          existingActor ! WsClientOutputActor.SetOutput(output)
-          existingActor
-        case None => context.spawn(Behaviors.setup(context => WsClientOutputActor(context, output)), s"ws-out-$userId")
-      replyTo ! actor
-      this
   }
 
   override def onSignal: PartialFunction[Signal, Behavior[ClientManagerActor.Command]] = {
@@ -51,12 +32,6 @@ class ClientManagerActor(context: ActorContext[ClientManagerActor.Command]) exte
 object ClientManagerActor {
   sealed trait Command
   final case class ConnectClient(userId: String,
-                                 output: ActorRef[OutgoingMessage | WsClientOutputActor.Command],
+                                 output: ActorRef[OutgoingMessage | ClientActor.ServiceCommand],
                                  replyTo: ActorRef[ActorRef[ClientActor.Command]]) extends Command
-  final case class ConnectWsInput(userId: String,
-                                  output: ActorRef[ClientActor.Command],
-                                  replyTo: ActorRef[ActorRef[Message | PoisonPill]]) extends Command
-  final case class ConnectWsOutput(userId: String,
-                                   output: ActorRef[Message],
-                                   replyTo: ActorRef[ActorRef[OutgoingMessage | WsClientOutputActor.Command]]) extends Command
 }

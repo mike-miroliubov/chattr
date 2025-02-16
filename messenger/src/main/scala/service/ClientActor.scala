@@ -1,8 +1,7 @@
 package org.chats
 package service
 
-import service.ClientActor.OutgoingMessage
-import service.WsClientOutputActor.ConnectionClosed
+import service.ClientActor.{ConnectionClosed, OutgoingMessage}
 
 import org.apache.pekko.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
 import org.apache.pekko.actor.typed.{ActorRef, Behavior, PostStop, Signal}
@@ -13,7 +12,7 @@ import org.apache.pekko.actor.typed.{ActorRef, Behavior, PostStop, Signal}
  */
 class ClientActor(context: ActorContext[ClientActor.Command],
                   userId: String,
-                  wsClientOutputActor: ActorRef[OutgoingMessage | WsClientOutputActor.Command]) extends AbstractBehavior[ClientActor.Command](context) {  // outboundQueue: SourceQueueWithComplete[OutgoingMessage],
+                  wsClientOutputActor: ActorRef[OutgoingMessage | ClientActor.ServiceCommand]) extends AbstractBehavior[ClientActor.Command](context) {  // outboundQueue: SourceQueueWithComplete[OutgoingMessage],
   context.log.info("User {} joined", userId)
   override def onMessage(msg: ClientActor.Command): Behavior[ClientActor.Command] = msg match {
     case in: ClientActor.IncomingMessage =>
@@ -28,9 +27,9 @@ class ClientActor(context: ActorContext[ClientActor.Command],
     case ClientActor.GreetingsMessage =>
       wsClientOutputActor ! OutgoingMessage("", "You joined the chat", "")
       this
-    case ClientActor.ConnectionClosed => 
+    case ClientActor.ConnectionClosed =>
       wsClientOutputActor ! ConnectionClosed
-      Behaviors.stopped   
+      Behaviors.stopped
   }
 
   override def onSignal: PartialFunction[Signal, Behavior[ClientActor.Command]] = {
@@ -47,5 +46,7 @@ object ClientActor {
   final case class IncomingMessage(messageId: String, text: String, to: String, from: String) extends Command
   final case class OutgoingMessage(messageId: String, text: String, from: String) extends Command
   case object GreetingsMessage extends Command
-  case object ConnectionClosed extends Command
+
+  sealed trait ServiceCommand extends Command
+  case object ConnectionClosed extends ServiceCommand
 }
