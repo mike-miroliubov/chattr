@@ -2,8 +2,8 @@ package org.chats
 package service
 
 import service.ClientActor.{IncomingMessage, OutgoingMessage}
+import service.WsClientInputActor.{Command, ConnectionClosed}
 
-import org.apache.pekko.actor.PoisonPill
 import org.apache.pekko.actor.typed.javadsl.Behaviors
 import org.apache.pekko.actor.typed.scaladsl.{AbstractBehavior, ActorContext}
 import org.apache.pekko.actor.typed.{ActorRef, Behavior, PostStop, Signal}
@@ -17,10 +17,10 @@ object StreamInitialized
 /**
  * This actor is part of web layer, it handles raw messages from the websocket
  */
-class WsClientInputActor(context: ActorContext[Message | PoisonPill],
-                         client: ActorRef[ClientActor.IncomingMessage]) extends AbstractBehavior[Message | PoisonPill](context) {
+class WsClientInputActor(context: ActorContext[Message | WsClientInputActor.Command],
+                         client: ActorRef[ClientActor.Command]) extends AbstractBehavior[Message | WsClientInputActor.Command](context) {
 
-  override def onMessage(msg: Message | PoisonPill): Behavior[Message | PoisonPill] = msg match {
+  override def onMessage(msg: Message | WsClientInputActor.Command): Behavior[Message | WsClientInputActor.Command] = msg match {
     case tm: TextMessage =>
       context.log.info("Got message: {}", tm.asTextMessage.getStrictText)
       client ! IncomingMessage("", tm.getStrictText, "", "")
@@ -29,12 +29,17 @@ class WsClientInputActor(context: ActorContext[Message | PoisonPill],
       // ignore binary messages but drain content to avoid the stream being clogged
       bm.dataStream.runWith(Sink.ignore)
       this
-    case PoisonPill =>
+    case ConnectionClosed =>
       context.log.info("Input stream closed")
+      client ! ClientActor.ConnectionClosed
       Behaviors.stopped
   }
 }
 
+object WsClientInputActor {
+  trait Command
+  case object ConnectionClosed extends Command
+}
 /**
  * This actor will also be part of web layer, once implemented. It will transfer raw messages to websocket
  */
@@ -51,6 +56,10 @@ class WsClientOutputActor(context: ActorContext[OutgoingMessage | WsClientOutput
       case WsClientOutputActor.SetOutput(newOutput) =>
         output = newOutput
         this
+      case WsClientOutputActor.ConnectionClosed =>
+        // TODO: send closing message to output actor
+        output ! TextMessage("CLOSED!")
+        this
     }
 
   override def onSignal: PartialFunction[Signal, Behavior[OutgoingMessage | WsClientOutputActor.Command]] = {
@@ -63,4 +72,5 @@ class WsClientOutputActor(context: ActorContext[OutgoingMessage | WsClientOutput
 object WsClientOutputActor {
   trait Command
   final case class SetOutput(output: ActorRef[Message]) extends Command
+  case object ConnectionClosed extends Command
 }

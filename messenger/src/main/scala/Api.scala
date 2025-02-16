@@ -1,10 +1,9 @@
 package org.chats
 
 import service.ClientActor.{GreetingsMessage, OutgoingMessage}
-import service.{ClientActor, ClientManagerActor}
+import service.{ClientActor, ClientManagerActor, WsClientInputActor, WsClientOutputActor}
 
 import org.apache.pekko.NotUsed
-import org.apache.pekko.actor.PoisonPill
 import org.apache.pekko.actor.typed.ActorRef
 import org.apache.pekko.actor.typed.scaladsl.AskPattern.*
 import org.apache.pekko.http.scaladsl.model.HttpMethods.GET
@@ -41,7 +40,10 @@ object Api extends Directives {
     // Create a source, backed by an actor so we could send messages to websocket
     // Pre-materialize the source to get the actor, we will pass it to our actor.
     val (outputActor, source) = ActorSource.actorRef[Message](
-      completionMatcher = PartialFunction.empty, // maybe handle graceful logout
+      completionMatcher = {
+        case m if m.asTextMessage.getStrictText == "CLOSED!" =>
+          system.log.info("Closed WS stream")
+      }, // maybe handle graceful logout
       failureMatcher = PartialFunction.empty[Message, Throwable],
       bufferSize = 256,
       overflowStrategy = OverflowStrategy.dropHead
@@ -50,7 +52,7 @@ object Api extends Directives {
     // spawn a new client actor and actors needed to communicate with this web socket
     for {
       wsOutputActor <- system.ask(ref => ClientManagerActor.ConnectWsOutput("new-client", outputActor, ref))(Timeout(3, TimeUnit.SECONDS))
-      clientActor <- system.ask(ref => ClientManagerActor.ConnectClient("new-client", wsOutputActor.asInstanceOf[ActorRef[OutgoingMessage]], ref))(Timeout(3, TimeUnit.SECONDS))
+      clientActor <- system.ask(ref => ClientManagerActor.ConnectClient("new-client", wsOutputActor.asInstanceOf[ActorRef[OutgoingMessage | WsClientOutputActor.Command]], ref))(Timeout(3, TimeUnit.SECONDS))
       wsInputActor <- system.ask(ref => ClientManagerActor.ConnectWsInput("new-client", clientActor.asInstanceOf[ActorRef[ClientActor.Command]], ref))(Timeout(3, TimeUnit.SECONDS))
     } yield {
       system.log.info("Created new actors: {}, {}, {}, {}", clientActor, wsInputActor, wsOutputActor, outputActor)
@@ -58,11 +60,13 @@ object Api extends Directives {
       // So we need this ugly casting
       clientActor.asInstanceOf[ActorRef[ClientActor.Command]] ! GreetingsMessage
 
-      val sink: Sink[Message | PoisonPill.type, NotUsed] = ActorSink.actorRef(wsInputActor.asInstanceOf[ActorRef[Message | PoisonPill]],
-        onCompleteMessage = PoisonPill, // TODO: this doesn't seem to be working
+      val sink: Sink[Message | WsClientInputActor.Command, NotUsed] = ActorSink.actorRef(wsInputActor.asInstanceOf[ActorRef[Message | WsClientInputActor.Command]],
+        onCompleteMessage = {
+          WsClientInputActor.ConnectionClosed
+        },
         onFailureMessage = e => {
           system.log.error("Exception when passing input messages", e)
-          PoisonPill
+          WsClientInputActor.ConnectionClosed
         })
 
       upgrade.handleMessagesWithSinkSource(sink, source)

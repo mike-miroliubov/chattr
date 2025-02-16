@@ -1,7 +1,7 @@
 package org.chats
 package service
 
-import service.ClientActor.{IncomingMessage, OutgoingMessage}
+import service.ClientActor.OutgoingMessage
 import service.ClientManagerActor.{ConnectClient, ConnectWsInput, ConnectWsOutput}
 
 import org.apache.pekko.actor.PoisonPill
@@ -51,12 +51,12 @@ class ClientManagerActor(context: ActorContext[ClientManagerActor.Command]) exte
 object ClientManagerActor {
   sealed trait Command
   final case class ConnectClient(userId: String,
-                                 output: ActorRef[OutgoingMessage],
+                                 output: ActorRef[OutgoingMessage | WsClientOutputActor.Command],
                                  replyTo: ActorRef[ActorRef[ClientActor.Command]]) extends Command
   final case class ConnectWsInput(userId: String,
-                                  output: ActorRef[IncomingMessage],
+                                  output: ActorRef[ClientActor.Command],
                                   replyTo: ActorRef[ActorRef[Message | PoisonPill]]) extends Command
   final case class ConnectWsOutput(userId: String,
                                    output: ActorRef[Message],
-                                   replyTo: ActorRef[ActorRef[OutgoingMessage]]) extends Command
+                                   replyTo: ActorRef[ActorRef[OutgoingMessage | WsClientOutputActor.Command]]) extends Command
 }
