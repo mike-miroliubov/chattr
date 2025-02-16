@@ -1,6 +1,6 @@
 package org.chats
 
-import service.ClientActor.{GreetingsMessage, IncomingMessage, OutgoingMessage}
+import service.ClientActor.{GreetingsMessage, OutgoingMessage}
 import service.{ClientActor, ClientManagerActor}
 
 import org.apache.pekko.NotUsed
@@ -8,7 +8,7 @@ import org.apache.pekko.actor.PoisonPill
 import org.apache.pekko.actor.typed.ActorRef
 import org.apache.pekko.actor.typed.scaladsl.AskPattern.*
 import org.apache.pekko.http.scaladsl.model.HttpMethods.GET
-import org.apache.pekko.http.scaladsl.model.ws.{Message, TextMessage, WebSocketUpgrade}
+import org.apache.pekko.http.scaladsl.model.ws.{Message, WebSocketUpgrade}
 import org.apache.pekko.http.scaladsl.model.{AttributeKeys, HttpRequest, HttpResponse, Uri}
 import org.apache.pekko.http.scaladsl.server.Directives
 import org.apache.pekko.stream.OverflowStrategy

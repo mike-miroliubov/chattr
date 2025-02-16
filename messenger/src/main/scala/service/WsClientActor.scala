@@ -4,6 +4,7 @@ package service
 import service.ClientActor.{IncomingMessage, OutgoingMessage}
 
 import org.apache.pekko.actor.PoisonPill
+import org.apache.pekko.actor.typed.javadsl.Behaviors
 import org.apache.pekko.actor.typed.scaladsl.{AbstractBehavior, ActorContext}
 import org.apache.pekko.actor.typed.{ActorRef, Behavior, PostStop, Signal}
 import org.apache.pekko.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
@@ -29,8 +30,8 @@ class WsClientInputActor(context: ActorContext[Message | PoisonPill],
       bm.dataStream.runWith(Sink.ignore)
       this
     case PoisonPill =>
-      context.log.info("Stream closed")
-      this
+      context.log.info("Input stream closed")
+      Behaviors.stopped
   }
 }
 

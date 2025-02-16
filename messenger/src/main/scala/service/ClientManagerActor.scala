@@ -16,18 +16,20 @@ class ClientManagerActor(context: ActorContext[ClientManagerActor.Command]) exte
   context.log.info("Messenger Application started")
 
   override def onMessage(msg: ClientManagerActor.Command): Behavior[ClientManagerActor.Command] = msg match {
-    case ConnectClient(userId, output, replyTo) => // queue
+    case ConnectClient(userId, output, replyTo) =>
       val actor = context.child(userId)
         .getOrElse(context.spawn(Behaviors.setup(context => ClientActor(context, userId, output)), userId))
         .unsafeUpcast[ClientActor.Command]
       replyTo ! actor
       this
+      
     case ConnectWsInput(userId, output, replyTo) =>
       val actor = context.child(s"ws-in-$userId")
         .getOrElse(context.spawn(Behaviors.setup(context => WsClientInputActor(context, output)), s"ws-in-$userId"))
         .unsafeUpcast[Message | PoisonPill]
       replyTo ! actor
       this
+      
     case ConnectWsOutput(userId, output, replyTo) =>
       val actor = context.child(s"ws-out-$userId") match
         case Some(value) =>
