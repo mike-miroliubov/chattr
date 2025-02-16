@@ -5,7 +5,7 @@ import service.ClientActor.{IncomingMessage, OutgoingMessage}
 
 import org.apache.pekko.actor.PoisonPill
 import org.apache.pekko.actor.typed.scaladsl.{AbstractBehavior, ActorContext}
-import org.apache.pekko.actor.typed.{ActorRef, Behavior}
+import org.apache.pekko.actor.typed.{ActorRef, Behavior, PostStop, Signal}
 import org.apache.pekko.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import org.apache.pekko.stream.scaladsl.Sink
 
@@ -17,12 +17,12 @@ object StreamInitialized
  * This actor is part of web layer, it handles raw messages from the websocket
  */
 class WsClientInputActor(context: ActorContext[Message | PoisonPill],
-                         output: ActorRef[Message]) extends AbstractBehavior[Message | PoisonPill](context) {
+                         client: ActorRef[ClientActor.IncomingMessage]) extends AbstractBehavior[Message | PoisonPill](context) {
 
   override def onMessage(msg: Message | PoisonPill): Behavior[Message | PoisonPill] = msg match {
     case tm: TextMessage =>
       context.log.info("Got message: {}", tm.asTextMessage.getStrictText)
-      output ! TextMessage(tm.asTextMessage.getStrictText)
+      client ! IncomingMessage("", tm.getStrictText, "", "")
       this
     case bm: BinaryMessage =>
       // ignore binary messages but drain content to avoid the stream being clogged
@@ -37,7 +37,29 @@ class WsClientInputActor(context: ActorContext[Message | PoisonPill],
 /**
  * This actor will also be part of web layer, once implemented. It will transfer raw messages to websocket
  */
-class WsClientOutputActor(context: ActorContext[OutgoingMessage]) extends AbstractBehavior[OutgoingMessage](context) {
+class WsClientOutputActor(context: ActorContext[OutgoingMessage | WsClientOutputActor.Command],
+                          private var output: ActorRef[Message])
+  extends AbstractBehavior[OutgoingMessage | WsClientOutputActor.Command](context) {
 
-  override def onMessage(msg: OutgoingMessage): Behavior[OutgoingMessage] = ???
+  override def onMessage(msg: OutgoingMessage | WsClientOutputActor.Command): Behavior[OutgoingMessage | WsClientOutputActor.Command] =
+    msg match {
+      case o: OutgoingMessage =>
+        context.log.info("Got message: {}", o.text)
+        output ! TextMessage(o.text)
+        this
+      case WsClientOutputActor.SetOutput(newOutput) =>
+        output = newOutput
+        this
+    }
+
+  override def onSignal: PartialFunction[Signal, Behavior[OutgoingMessage | WsClientOutputActor.Command]] = {
+    case PostStop =>
+      context.log.info("WS disconnected")
+      this
+  }
+}
+
+object WsClientOutputActor {
+  trait Command
+  final case class SetOutput(output: ActorRef[Message]) extends Command
 }

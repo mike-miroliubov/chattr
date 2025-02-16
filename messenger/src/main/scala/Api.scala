@@ -1,6 +1,6 @@
 package org.chats
 
-import service.ClientActor.IncomingMessage
+import service.ClientActor.{GreetingsMessage, IncomingMessage, OutgoingMessage}
 import service.{ClientActor, ClientManagerActor}
 
 import org.apache.pekko.NotUsed
@@ -41,33 +41,29 @@ object Api extends Directives {
     // Create a source, backed by an actor so we could send messages to websocket
     // Pre-materialize the source to get the actor, we will pass it to our actor.
     val (outputActor, source) = ActorSource.actorRef[Message](
-      completionMatcher = PartialFunction.empty,
+      completionMatcher = PartialFunction.empty, // maybe handle graceful logout
       failureMatcher = PartialFunction.empty[Message, Throwable],
       bufferSize = 256,
       overflowStrategy = OverflowStrategy.dropHead
     ).preMaterialize()
 
-    // spawn a new client actor, we will use it to communicate with this web socket later
-    val clientActorFuture = system.ask(ref => ClientManagerActor.ConnectClient("new-client", ref))(Timeout(3, TimeUnit.SECONDS))
-    val wsInputActorFuture = system.ask(ref => ClientManagerActor.ConnectWs("new-client", outputActor, ref))(Timeout(3, TimeUnit.SECONDS))
-
+    // spawn a new client actor and actors needed to communicate with this web socket
     for {
-      clientActor <- clientActorFuture
-      wsActor <- wsInputActorFuture
+      wsOutputActor <- system.ask(ref => ClientManagerActor.ConnectWsOutput("new-client", outputActor, ref))(Timeout(3, TimeUnit.SECONDS))
+      clientActor <- system.ask(ref => ClientManagerActor.ConnectClient("new-client", wsOutputActor.asInstanceOf[ActorRef[OutgoingMessage]], ref))(Timeout(3, TimeUnit.SECONDS))
+      wsInputActor <- system.ask(ref => ClientManagerActor.ConnectWsInput("new-client", clientActor.asInstanceOf[ActorRef[ClientActor.Command]], ref))(Timeout(3, TimeUnit.SECONDS))
     } yield {
-      system.log.info("Created new actor {}", clientActor)
+      system.log.info("Created new actors: {}, {}, {}, {}", clientActor, wsInputActor, wsOutputActor, outputActor)
       // Scala cannot properly infer types here for some reason (probably because of a contravariant ActorRef[-T])
       // So we need this ugly casting
-      clientActor.asInstanceOf[ActorRef[ClientActor.Command]] ! IncomingMessage("", "Joined the chat", "", "")
+      clientActor.asInstanceOf[ActorRef[ClientActor.Command]] ! GreetingsMessage
 
-      val sink: Sink[Message | PoisonPill.type, NotUsed] = ActorSink.actorRef(wsActor.asInstanceOf[ActorRef[Message | PoisonPill]],
+      val sink: Sink[Message | PoisonPill.type, NotUsed] = ActorSink.actorRef(wsInputActor.asInstanceOf[ActorRef[Message | PoisonPill]],
         onCompleteMessage = PoisonPill, // TODO: this doesn't seem to be working
         onFailureMessage = e => {
           system.log.error("Exception when passing input messages", e)
           PoisonPill
         })
-
-      outputActor ! TextMessage("hello")
 
       upgrade.handleMessagesWithSinkSource(sink, source)
     }
