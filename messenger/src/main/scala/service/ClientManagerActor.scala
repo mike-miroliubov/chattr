@@ -3,10 +3,9 @@ package service
 
 import org.apache.pekko.actor.PoisonPill
 import org.apache.pekko.actor.typed.{ActorRef, Behavior, PostStop, Signal}
+import org.apache.pekko.actor.ActorRef as UntypedActorRef
 import org.apache.pekko.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
 import org.apache.pekko.http.scaladsl.model.ws.Message
-import org.apache.pekko.stream.scaladsl.SourceQueueWithComplete
-import org.chats.service.ClientActor.OutgoingMessage
 import org.chats.service.ClientManagerActor.{ConnectClient, ConnectWs}
 
 /**
@@ -15,18 +14,16 @@ import org.chats.service.ClientManagerActor.{ConnectClient, ConnectWs}
 class ClientManagerActor(context: ActorContext[ClientManagerActor.Command]) extends AbstractBehavior[ClientManagerActor.Command](context) {
   context.log.info("Messenger Application started")
   override def onMessage(msg: ClientManagerActor.Command): Behavior[ClientManagerActor.Command] = msg match {
-    case ConnectClient(userId, queue, replyTo) =>
+    case ConnectClient(userId, replyTo) => // queue
       val client = context.child(userId)
-        .getOrElse(context.spawn(Behaviors.setup(context => ClientActor(context, queue, userId)), userId))
+        .getOrElse(context.spawn(Behaviors.setup(context => ClientActor(context, userId)), userId))
         .unsafeUpcast[ClientActor.Command]
-      //val newClient = context.spawn(Behaviors.setup(context => ClientActor(context, queue, userId)), userId)
       replyTo ! client
       this
-    case ConnectWs(userId, replyTo) =>
+    case ConnectWs(userId, output, replyTo) =>
       val client = context.child(s"ws-$userId")
-        .getOrElse(context.spawn(Behaviors.setup(context => WsClientInputActor(context)), s"ws-$userId"))
+        .getOrElse(context.spawn(Behaviors.setup(context => WsClientInputActor(context, output)), s"ws-$userId"))
         .unsafeUpcast[Message | PoisonPill]
-      //val newClient = context.spawn(Behaviors.setup(context => WsClientInputActor(context)), s"ws-$userId")
       replyTo ! client
       this
   }
@@ -41,8 +38,8 @@ class ClientManagerActor(context: ActorContext[ClientManagerActor.Command]) exte
 object ClientManagerActor {
   sealed trait Command
   final case class ConnectClient(userId: String,
-                                 outboundQueue: SourceQueueWithComplete[OutgoingMessage],
                                  replyTo: ActorRef[ActorRef[ClientActor.Command]]) extends Command
   final case class ConnectWs(userId: String,
+                             outputActorSource: UntypedActorRef,
                              replyTo: ActorRef[ActorRef[Message | PoisonPill]]) extends Command
 }

@@ -3,7 +3,7 @@ package org.chats
 import service.ClientActor.{IncomingMessage, OutgoingMessage}
 import service.{ClientActor, ClientManagerActor}
 
-import org.apache.pekko.NotUsed
+import org.apache.pekko.{Done, NotUsed}
 import org.apache.pekko.actor.PoisonPill
 import org.apache.pekko.actor.typed.ActorRef
 import org.apache.pekko.actor.typed.scaladsl.AskPattern.*
@@ -13,7 +13,7 @@ import org.apache.pekko.http.scaladsl.model.{AttributeKeys, HttpRequest, HttpRes
 import org.apache.pekko.http.scaladsl.server.Directives
 import org.apache.pekko.stream.OverflowStrategy
 import org.apache.pekko.stream.scaladsl.{Sink, Source, SourceQueueWithComplete}
-import org.apache.pekko.stream.typed.javadsl.ActorSource
+import org.apache.pekko.stream.typed.scaladsl.ActorSource
 import org.apache.pekko.stream.typed.scaladsl.ActorSink
 import org.apache.pekko.util.Timeout
 
@@ -39,15 +39,23 @@ object Api extends Directives {
   }
 
   private def handleWebSocketUpgrade(upgrade: WebSocketUpgrade): Future[HttpResponse] = {
-    // Create a source, backed by a queue so we could connect actor with a web socket.
-    // Pre-materialize the source to get that queue, we will pass it to an actor.
+//    val (outputActor, source) = ActorSource.actorRef[Message](
+//      completionMatcher = Done => {},
+//      failureMatcher = {
+//        case bm: BinaryMessage => RuntimeException()
+//      },
+//      bufferSize = 256,
+//      overflowStrategy = OverflowStrategy.dropHead
+//    ).preMaterialize()
+
+    // Create a source, backed by an actor so we could send messages to websocket
+    // Pre-materialize the source to get the actor, we will pass it to an actor.
     // There's probably a much better way of doing this
-    val (outQueue: SourceQueueWithComplete[OutgoingMessage], outSrc: Source[OutgoingMessage, NotUsed]) =
-      Source.queue[OutgoingMessage](16, OverflowStrategy.fail).preMaterialize()
+    val (outputActor, source) = Source.actorRef[Message](256, OverflowStrategy.dropHead).preMaterialize()
 
     // spawn a new client actor, we will use it to communicate with this web socket later
-    val clientActorFuture = system.ask(ref => ClientManagerActor.ConnectClient("new-client", outQueue, ref))(Timeout(3, TimeUnit.SECONDS))
-    val wsInputActorFuture = system.ask(ref => ClientManagerActor.ConnectWs("new-client", ref))(Timeout(3, TimeUnit.SECONDS))
+    val clientActorFuture = system.ask(ref => ClientManagerActor.ConnectClient("new-client", ref))(Timeout(3, TimeUnit.SECONDS))
+    val wsInputActorFuture = system.ask(ref => ClientManagerActor.ConnectWs("new-client", outputActor, ref))(Timeout(3, TimeUnit.SECONDS))
 
     for {
       clientActor <- clientActorFuture
@@ -63,10 +71,14 @@ object Api extends Directives {
         PoisonPill
       })
 
+      outputActor ! TextMessage("hello")
+
       upgrade.handleMessagesWithSinkSource(
         sink,
         //Sink.foreach[Message](handleIncomingMessage(clientActor.asInstanceOf[ActorRef[ClientActor.Command]], "new-client")),
-        outSrc.map(o => TextMessage(o.text)))
+        //outSrc.map(o => TextMessage(o.text))
+        source
+      )
     }
   }
 
