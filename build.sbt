@@ -10,7 +10,6 @@ lazy val root = (project in file("."))
   .settings(
     name := "web-chat2",
     idePackagePrefix := Some("org.chats"),
-    assembly / mainClass := Some("org.chats.Main")
   )
 
 val pekkoVersion = "1.1.3"
@@ -20,16 +19,15 @@ val commonDependencies = Seq(
   "org.apache.pekko" %% "pekko-stream" % pekkoVersion,
   "org.apache.pekko" %% "pekko-http" % pekkoHttpVersion,
   "org.apache.pekko" %% "pekko-http-spray-json" % pekkoHttpVersion,
+  // include an slf4j implementation so that we have logging
   "ch.qos.logback" % "logback-classic" % "1.5.15",
   "org.apache.pekko" %% "pekko-stream-typed" % pekkoVersion
 )
 
-libraryDependencies ++= commonDependencies
-
 lazy val messenger = project
-  .in(file("messenger"))
+  .in(file("messenger-api"))
   .settings(
-    name := "messenger",
+    name := "messenger-api",
     idePackagePrefix := Some("org.chats"),
     libraryDependencies ++= commonDependencies,
   )
