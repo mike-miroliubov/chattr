@@ -2,6 +2,7 @@ package org.chats
 
 import service.ClientManagerActor
 
+import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.http.scaladsl.Http
@@ -13,7 +14,14 @@ import scala.util.Failure
 // This was ActorSystem[Any] in the Pekko Http docs, not sure if its okay to reuse this system for application's actors
 // or we need to build a new one. This somehow works for now.
 implicit val system: ActorSystem[ClientManagerActor.Command] = ActorSystem(
-  Behaviors.setup(context => ClientManagerActor(context)), "my-system")
+  Behaviors.setup(context => ClientManagerActor(context)), "my-system", configureClusterPort())
+
+private def configureClusterPort(): Config = {
+  ConfigFactory.parseString(
+    s"""
+    pekko.remote.artery.canonical.port=${sys.env.getOrElse("CLUSTER_PORT", "7354")}
+    """).withFallback(ConfigFactory.load())
+}
 
 implicit val executionContext: ExecutionContextExecutor = system.executionContext
 
@@ -22,7 +30,7 @@ object MessengerMain {
 
     println("Starting messenger server")
     val host = "localhost"
-    val port = 8081
+    val port = sys.env.getOrElse("MESSENGER_PORT", "8081").toInt
     val binding = Http().newServerAt(host, port).bind(Api.handleWsRequest)
 
     StdIn.readLine() // let it run until user presses return

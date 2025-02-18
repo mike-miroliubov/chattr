@@ -7,6 +7,7 @@ import service.ClientManagerActor.ConnectClient
 import org.apache.pekko.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
 import org.apache.pekko.actor.typed.{ActorRef, Behavior, PostStop, Signal}
 import org.apache.pekko.actor.typed.scaladsl.adapter.*
+import org.apache.pekko.cluster.routing.{ClusterRouterGroup, ClusterRouterGroupSettings}
 import org.apache.pekko.routing.{ActorRefRoutee, AddRoutee, BroadcastGroup}
 
 /**
@@ -18,15 +19,24 @@ class ClientManagerActor(context: ActorContext[ClientManagerActor.Command]) exte
   // using a classic router here because they have a optimization to route concurrently, which typed routers don't
   // https://doc.akka.io/libraries/akka-core/current/typed/routers.html#routers-and-performance
   // https://doc.akka.io/libraries/akka-core/current/routing.html#how-routing-is-designed-within-akka
-  private val globalRouter = context.actorOf(BroadcastGroup(List()).props(), "global-router")
+  // private val globalRouter = context.actorOf(BroadcastGroup(List()).props(), "global-router")
+  // A cluster router!
+  private val globalRouter = context.actorOf(ClusterRouterGroup(
+    BroadcastGroup(List()),
+    ClusterRouterGroupSettings(
+      totalInstances = 10000,
+      routeesPaths = Seq("/user/client-*"),
+      allowLocalRoutees = true,
+      useRoles = Set()
+    )
+  ).props(), "global-router")
 
   override def onMessage(msg: ClientManagerActor.Command): Behavior[ClientManagerActor.Command] = msg match {
     case ConnectClient(userId, output, replyTo) =>
       val actor = context.child(userId)
-        .getOrElse(context.spawn(Behaviors.setup(context => ClientActor(context, userId, output, globalRouter)), userId))
+        .getOrElse(context.spawn(Behaviors.setup(context => ClientActor(context, userId, output, globalRouter)), s"client-$userId"))
         .unsafeUpcast[ClientActor.Command]
 
-      globalRouter ! AddRoutee(ActorRefRoutee(actor.toClassic))
       replyTo ! actor  // for the ask pattern we should return the newly created actor to the caller
       this
   }
