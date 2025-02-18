@@ -16,27 +16,27 @@ import org.apache.pekko.stream.typed.scaladsl.{ActorSink, ActorSource}
 import org.apache.pekko.util.Timeout
 
 import java.util.concurrent.TimeUnit
-import scala.concurrent.Future
+import scala.concurrent.{Future, Promise}
 
 object Api extends Directives {
   def handleWsRequest(request: HttpRequest): Future[HttpResponse] = request match {
     // WS connections are only allowed at /api/connect endpoint
     case req @ HttpRequest(GET, Uri.Path("/api/connect"), _, _, _) =>
       // handle websocket upgrade event
-      req.attribute(AttributeKeys.webSocketUpgrade) match {
-        case Some(upgrade) => handleWebSocketUpgrade(upgrade)
-        case None => Future {
-          HttpResponse(400, entity = "Not a valid websocket request!")
-        }
+      req.uri.query().get("userName") match {
+        case Some(userName) if !userName.isBlank =>
+          req.attribute(AttributeKeys.webSocketUpgrade) match {
+            case Some(upgrade) => handleWebSocketUpgrade(upgrade, userName)
+            case None => Promise.successful(HttpResponse(400, entity = "Not a valid websocket request!")).future
+          }
+        case _ => Promise.successful(HttpResponse(400, entity = "userName parameter is required")).future
       }
     case r: HttpRequest =>
       r.discardEntityBytes() // important to drain incoming HTTP Entity stream
-      Future {
-        HttpResponse(404, entity = "Unknown resource!")
-      }
+      Promise.successful(HttpResponse(404, entity = "Unknown resource!")).future
   }
 
-  private def handleWebSocketUpgrade(upgrade: WebSocketUpgrade): Future[HttpResponse] = {
+  private def handleWebSocketUpgrade(upgrade: WebSocketUpgrade, userName: String): Future[HttpResponse] = {
     // Create a source, backed by an actor so we could send messages to websocket
     // We'll create an actor that can handle our DTO objects: OutgoingMessage-s and ServiceCommand-s.
     // Pre-materialize the source to get the actor, we will pass it to our ClientActor.
@@ -52,7 +52,7 @@ object Api extends Directives {
 
     // To handle websocket, we need a source that produces WS Message-s. Map our DTO messages to WS contract.
     val wsOutputMessageSource = outputMessageSource.map {
-      case OutgoingMessage(_, text, _) => TextMessage(text)
+      case OutgoingMessage(_, text, from) => TextMessage(s"$from: $text")
     }
 
     for {
@@ -60,7 +60,7 @@ object Api extends Directives {
       // Spawning is done by asking the system (ClientManagerActor) for a new actor by passing a ConnectClient message. This returns a Future of a new ClientActor
       // Scala cannot properly infer types here for some reason (probably because of a contravariant ActorRef[-T]).
       // We need to help it.
-      clientActor <- system.ask[ActorRef[ClientActor.Command]](ref => ClientManagerActor.ConnectClient("new-client", outputActor, ref))(Timeout(3, TimeUnit.SECONDS))
+      clientActor <- system.ask[ActorRef[ClientActor.Command]](ref => ClientManagerActor.ConnectClient(userName, outputActor, ref))(Timeout(3, TimeUnit.SECONDS))
     } yield {
       system.log.debug("Created new actors: {}, {}", clientActor, outputActor)
       clientActor ! GreetingsMessage

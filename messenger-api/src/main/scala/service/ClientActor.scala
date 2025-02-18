@@ -5,6 +5,7 @@ import service.ClientActor.{ConnectionClosed, OutgoingMessage, ServiceCommand, I
 
 import org.apache.pekko.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
 import org.apache.pekko.actor.typed.{ActorRef, Behavior, PostStop, Signal}
+import org.apache.pekko.actor.ActorRef as UntypedActorRef
 
 /**
  * This is the main user actor. It handles user's incoming and outgoing messages.
@@ -12,14 +13,16 @@ import org.apache.pekko.actor.typed.{ActorRef, Behavior, PostStop, Signal}
  */
 class ClientActor(context: ActorContext[ClientActor.Command],
                   userId: String,
-                  outputActor: ActorRef[OutgoingMessage | ServiceCommand]) extends AbstractBehavior[ClientActor.Command](context) {  // outboundQueue: SourceQueueWithComplete[OutgoingMessage],
+                  outputActor: ActorRef[OutgoingMessage | ServiceCommand],
+                  router: UntypedActorRef,
+                 ) extends AbstractBehavior[ClientActor.Command](context) {
   context.log.info("User {} joined", userId)
   override def onMessage(msg: ClientActor.Command): Behavior[ClientActor.Command] = msg match {
     case in: IncomingMessage =>
       context.log.info("Got message: {}", in.text)
 
       // for now we'll just route it to ws output actor to echo back to the user. Later we will send it to other users' actors
-      outputActor ! OutgoingMessage("", s"You said: ${in.text}", "")
+      router ! OutgoingMessage("", in.text, userId)
       this
     case out: OutgoingMessage =>
       outputActor ! out
