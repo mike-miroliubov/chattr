@@ -4,6 +4,7 @@ package service
 import service.ClientActor.OutgoingMessage
 import service.ClientManagerActor.ConnectClient
 
+import org.apache.pekko.actor.typed.receptionist.Receptionist
 import org.apache.pekko.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
 import org.apache.pekko.actor.typed.{ActorRef, Behavior, PostStop, Signal}
 import org.apache.pekko.actor.typed.scaladsl.adapter.*

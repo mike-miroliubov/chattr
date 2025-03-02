@@ -1,11 +1,18 @@
 package org.chats
 package service
 
-import service.ClientActor.{ConnectionClosed, OutgoingMessage, ServiceCommand, IncomingMessage, GreetingsMessage}
+import service.ClientActor.*
 
+import org.apache.pekko.actor.ActorRef as UntypedActorRef
+import org.apache.pekko.actor.typed.receptionist.{Receptionist, ServiceKey}
+import org.apache.pekko.actor.typed.scaladsl.AskPattern.*
 import org.apache.pekko.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
 import org.apache.pekko.actor.typed.{ActorRef, Behavior, PostStop, Signal}
-import org.apache.pekko.actor.ActorRef as UntypedActorRef
+import org.apache.pekko.util.Timeout
+
+import java.util.concurrent.{ConcurrentHashMap, TimeUnit}
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
 
 /**
  * This is the main user actor. It handles user's incoming and outgoing messages.
@@ -17,12 +24,24 @@ class ClientActor(context: ActorContext[ClientActor.Command],
                   router: UntypedActorRef,
                  ) extends AbstractBehavior[ClientActor.Command](context) {
   context.log.info("User {} joined", userId)
+
+  private val peers = ConcurrentHashMap[String, ActorRef[OutgoingMessage]]()
+
+  private val clientServiceKey = ServiceKey[OutgoingMessage](userId)
+  context.system.receptionist ! Receptionist.Register(clientServiceKey, context.self)
+
   override def onMessage(msg: ClientActor.Command): Behavior[ClientActor.Command] = msg match {
     case in: IncomingMessage =>
       context.log.info("Got message: {}", in.text)
 
-      // for now we'll just route it to ws output actor to echo back to the user. Later we will send it to other users' actors
-      router ! OutgoingMessage("", in.text, userId)
+      // This is a very naive lookup, fix it with a better one. THis will not scale
+      if (!peers.containsKey(in.to)) {
+        val result: Future[Receptionist.Listing] = context.system.receptionist.ask[Receptionist.Listing](ref => Receptionist.Find(ServiceKey[OutgoingMessage](in.to), ref))(Timeout(3, TimeUnit.SECONDS))
+        val listing = Await.result(result, atMost = Duration(3, TimeUnit.SECONDS))
+        peers.put(in.to, listing.serviceInstances(ServiceKey[OutgoingMessage](in.to)).head)
+      }
+
+      peers.get(in.to) ! OutgoingMessage(in.messageId, in.text, userId)
       this
     case out: OutgoingMessage =>
       outputActor ! out
