@@ -14,11 +14,14 @@ import org.apache.pekko.stream.OverflowStrategy
 import org.apache.pekko.stream.scaladsl.{Flow, Sink, Source}
 import org.apache.pekko.stream.typed.scaladsl.{ActorSink, ActorSource}
 import org.apache.pekko.util.Timeout
+import org.chats.dto.{InputMessageDto, MessengerJsonProtocol, OutputMessageDto}
 
 import java.util.concurrent.TimeUnit
+import scala.concurrent.duration.Duration
 import scala.concurrent.{Future, Promise}
+import spray.json.*
 
-object Api extends Directives {
+object Api extends Directives with MessengerJsonProtocol {
   def handleWsRequest(request: HttpRequest): Future[HttpResponse] = request match {
     // WS connections are only allowed at /api/connect endpoint
     case req @ HttpRequest(GET, Uri.Path("/api/connect"), _, _, _) =>
@@ -52,7 +55,7 @@ object Api extends Directives {
 
     // To handle websocket, we need a source that produces WS Message-s. Map our DTO messages to WS contract.
     val wsOutputMessageSource = outputMessageSource.map {
-      case OutgoingMessage(_, text, from) => TextMessage(s"$from: $text")
+      case OutgoingMessage(id, text, from) => TextMessage(OutputMessageDto(id, from, text).toJson.toString)
     }
 
     for {
@@ -73,7 +76,11 @@ object Api extends Directives {
             b.dataStream.runWith(Sink.ignore)
             None
         }
-        .map(m => IncomingMessage("", m.getStrictText, "", "")) // transform WS message to an IncomingMessage DTO
+        .mapAsync(1)(m => m.toStrict(Duration(3, TimeUnit.SECONDS)))
+        .map { m =>
+          val dto = m.getStrictText.parseJson.convertTo[InputMessageDto]
+          IncomingMessage(dto.id, dto.text, dto.to, "")
+        } // transform WS message to an IncomingMessage DTO
         .to(ActorSink.actorRef( // process messages with a ClientActor by dumping to an ActorSink
           clientActor,
           // when the client wants to disconnect, this message will be passed to the ClientActor,
