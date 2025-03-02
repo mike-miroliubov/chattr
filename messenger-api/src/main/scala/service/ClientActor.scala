@@ -11,8 +11,8 @@ import org.apache.pekko.actor.typed.{ActorRef, Behavior, PostStop, Signal}
 import org.apache.pekko.util.Timeout
 
 import java.util.concurrent.{ConcurrentHashMap, TimeUnit}
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future}
+import scala.concurrent.Future
+import scala.util.{Failure, Success, Try}
 
 /**
  * This is the main user actor. It handles user's incoming and outgoing messages.
@@ -25,7 +25,7 @@ class ClientActor(context: ActorContext[ClientActor.Command],
                  ) extends AbstractBehavior[ClientActor.Command](context) {
   context.log.info("User {} joined", userId)
 
-  private val peers = ConcurrentHashMap[String, ActorRef[OutgoingMessage]]()
+  private val peers = ConcurrentHashMap[String, ActorRef[OutgoingMessage] | Future[ActorRef[OutgoingMessage]]]()
 
   private val clientServiceKey = ServiceKey[OutgoingMessage](userId)
   context.system.receptionist ! Receptionist.Register(clientServiceKey, context.self)
@@ -34,14 +34,19 @@ class ClientActor(context: ActorContext[ClientActor.Command],
     case in: IncomingMessage =>
       context.log.info("Got message: {}", in.text)
 
-      // This is a very naive lookup, fix it with a better one. THis will not scale
-      if (!peers.containsKey(in.to)) {
-        val result: Future[Receptionist.Listing] = context.system.receptionist.ask[Receptionist.Listing](ref => Receptionist.Find(ServiceKey[OutgoingMessage](in.to), ref))(Timeout(3, TimeUnit.SECONDS))
-        val listing = Await.result(result, atMost = Duration(3, TimeUnit.SECONDS))
-        peers.put(in.to, listing.serviceInstances(ServiceKey[OutgoingMessage](in.to)).head)
+      // This is a very naive lookup, fix it with a better one. This will not scale
+      val value = peers.computeIfAbsent(in.to, key => {
+        context.system.receptionist.ask[Receptionist.Listing](ref => Receptionist.Find(ServiceKey[OutgoingMessage](in.to), ref))(Timeout(3, TimeUnit.SECONDS))
+          .map { listing => listing.serviceInstances(ServiceKey[OutgoingMessage](in.to)).head }
+      })
+
+      value match {
+        case toActorFuture: Future[ActorRef[OutgoingMessage]] =>
+          toActorFuture.onComplete(sendMessageOnLookupComplete(in))
+        case toActor: ActorRef[OutgoingMessage] =>
+          toActor ! OutgoingMessage(in.messageId, in.text, userId)
       }
 
-      peers.get(in.to) ! OutgoingMessage(in.messageId, in.text, userId)
       this
     case out: OutgoingMessage =>
       outputActor ! out
@@ -53,6 +58,13 @@ class ClientActor(context: ActorContext[ClientActor.Command],
       context.log.info("Client {} disconnected", userId)
       outputActor ! ConnectionClosed
       Behaviors.stopped
+  }
+
+  private def sendMessageOnLookupComplete(in: IncomingMessage)(result: Try[ActorRef[OutgoingMessage]]): Unit = result match {
+    case Failure(exception) => ??? // this will happen if an actor is missing
+    case Success(toActor) =>
+      peers.put(in.to, toActor)
+      toActor ! OutgoingMessage(in.messageId, in.text, userId)
   }
 
   override def onSignal: PartialFunction[Signal, Behavior[ClientActor.Command]] = {
