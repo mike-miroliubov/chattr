@@ -1,20 +1,25 @@
 package org.chats
 
-import service.ClientManagerActor
+import service.{ClientManagerActor, Exchange}
 
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
+import org.apache.pekko.cluster.sharding.typed.scaladsl.ClusterSharding
 import org.apache.pekko.http.scaladsl.Http
 
 import scala.concurrent.ExecutionContextExecutor
 import scala.io.StdIn
-import scala.util.Failure
+import scala.util.{Failure, Success}
 
 // This was ActorSystem[Any] in the Pekko Http docs, not sure if its okay to reuse this system for application's actors
 // or we need to build a new one. This somehow works for now.
 implicit val system: ActorSystem[ClientManagerActor.Command] = ActorSystem(
   Behaviors.setup(context => ClientManagerActor(context)), "my-system", configureClusterPort())
+
+val sharding = ClusterSharding(system)
+// Makes sure the ShardRegion is initialized at startup
+val shardRegion = Exchange.shardRegion
 
 private def configureClusterPort(): Config = {
   ConfigFactory.parseString(
@@ -40,7 +45,7 @@ object MessengerMain {
       .onComplete(r => {
         r match {
           case Failure(ex) => system.log.error("Failed to bind to {}:{}!", ex, host, port)
-          case scala.util.Success(_) => {}
+          case Success(_) => {}
         }
         system.terminate()
       }) // and shutdown when done

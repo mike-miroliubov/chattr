@@ -4,12 +4,11 @@ package service
 import service.ClientActor.OutgoingMessage
 import service.ClientManagerActor.ConnectClient
 
-import org.apache.pekko.actor.typed.receptionist.Receptionist
+import org.apache.pekko.actor.typed.scaladsl.adapter.*
 import org.apache.pekko.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
 import org.apache.pekko.actor.typed.{ActorRef, Behavior, PostStop, Signal}
-import org.apache.pekko.actor.typed.scaladsl.adapter.*
 import org.apache.pekko.cluster.routing.{ClusterRouterGroup, ClusterRouterGroupSettings}
-import org.apache.pekko.routing.{ActorRefRoutee, AddRoutee, BroadcastGroup}
+import org.apache.pekko.routing.BroadcastGroup
 
 /**
  * This is the root class of all client actors. It handles creation of new actors as users connect.
