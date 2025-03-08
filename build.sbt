@@ -7,6 +7,7 @@ ThisBuild / scalaVersion := "3.3.5"
 lazy val root = (project in file("."))
   .aggregate(messenger)
   .aggregate(chatsApi)
+  .aggregate(cliClient)
   .settings(
     name := "web-chat2",
     idePackagePrefix := Some("org.chats"),
@@ -42,6 +43,14 @@ lazy val chatsApi = project
     idePackagePrefix := Some("org.chats"),
     libraryDependencies ++= commonDependencies,
   )
+
+lazy val cliClient = project
+    .in(file("cli-client"))
+    .settings(
+      name := "cli-client",
+      idePackagePrefix := Some("org.chats"),
+      libraryDependencies ++= commonDependencies,
+    )
 
 // Customize the merge strategy to discard duplicated files and merge Pekko conf files
 ThisBuild / assemblyMergeStrategy := {
