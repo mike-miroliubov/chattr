@@ -1,15 +1,13 @@
 package org.chats
 
+import model.Model
+
 import org.apache.pekko.Done
+import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.actor.typed.scaladsl.AskPattern.*
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.actor.typed.{ActorRef, ActorSystem}
-import org.apache.pekko.http.scaladsl.Http
-import org.apache.pekko.http.scaladsl.model.StatusCodes
-import org.apache.pekko.http.scaladsl.model.ws.{Message, TextMessage, WebSocketRequest}
-import org.apache.pekko.stream.OverflowStrategy
-import org.apache.pekko.stream.scaladsl.{Keep, Sink, Source}
-import org.apache.pekko.stream.typed.scaladsl.ActorSource
+import org.apache.pekko.http.scaladsl.model.ws.{Message, TextMessage}
+import org.apache.pekko.stream.scaladsl.Sink
 
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.Duration
@@ -29,7 +27,7 @@ object Main extends App {
   println("Welcome! Please enter your username")
   val userName = readLine()
 
-  val webSocketFlow = Http().webSocketClientFlow(WebSocketRequest(s"ws://localhost:8081/api/connect?userName=$userName"))
+  val model = Model(userName)
 
   // Future[Done] is the materialized value of Sink.foreach,
   // emitted when the stream completes
@@ -41,31 +39,7 @@ object Main extends App {
       // ignore other message types
     }
 
-  // send this as a message over the WebSocket
-  val (sendingActor, source) = ActorSource.actorRef[InputMessageDto | ServiceMessage](
-    completionMatcher = {
-      case ConnectionClosed =>
-        println("Closed the stream")
-    },
-    failureMatcher = PartialFunction.empty[InputMessageDto | ServiceMessage, Throwable],
-    bufferSize = 256,
-    overflowStrategy = OverflowStrategy.dropHead
-  ).preMaterialize()
-
-  val (upgradeResponse, closed) =
-    source
-      .map { case o: InputMessageDto => TextMessage(s"{\"text\":\"${o.text}\", \"to\":\"${o.to}\", \"id\":\"${o.id}\"}")}
-      .viaMat(webSocketFlow)(Keep.right) // keep the materialized Future[WebSocketUpgradeResponse]
-      .toMat(incoming)(Keep.both) // also keep the Future[Done]
-      .run()
-
-  val connected = upgradeResponse.flatMap { upgrade =>
-    if (upgrade.response.status == StatusCodes.SwitchingProtocols) {
-      Future.successful(Done)
-    } else {
-      throw new RuntimeException(s"Connection failed: ${upgrade.response.status}")
-    }
-  }
+  val (upgradeResponse, connected, closed) = model.start(incoming)
 
   // in a real application you would not side effect here
   connected.onComplete(println)
@@ -82,8 +56,8 @@ object Main extends App {
     system.log.info("Shutting down")
     val x = Try {
       Await.ready(Future {
-        sendingActor ! ConnectionClosed // this doesn't really work because probably the Actor system is already downing
-      }, Duration(2, TimeUnit.SECONDS))
+        model.close()
+      }, Duration(3, TimeUnit.SECONDS))
     }
 
     println("Goodbye!")
@@ -97,6 +71,6 @@ object Main extends App {
 
   while (true) {
     val message = readLine()
-    sendingActor ! InputMessageDto("whatever", "foo", message)
+    model.send(InputMessageDto("whatever", "foo", message))
   }
 }
