@@ -23,20 +23,27 @@ object Exchange {
     sharding.init(Entity(typeKey)(createBehavior = entityContext => Exchange(entityContext.entityId)))
 
   sealed trait Command
+
   final case class Connect(connection: ActorRef[OutgoingMessage]) extends Command
+
   final case class Disconnect(connection: ActorRef[OutgoingMessage]) extends Command
 
   /**
-   * This actor is implemented as function, rather than as a class. This actor, perhaps need to be converted to a persistent one
+   * This actor is implemented as function, rather than as a class. This actor, perhaps need to be converted to a persistent one.
+   * TODO: We must make it a persistent actor: it loses the state of connected actors if its passivated (2 min timeout)
    */
   def apply(userId: String): Behavior[OutgoingMessage | Exchange.Command] = {
-    def inner(connectedActors: List[ActorRef[OutgoingMessage]]): Behavior[OutgoingMessage | Exchange.Command] = Behaviors.receiveMessage {
-        case Connect(connection) => inner(connection :: connectedActors)
-        case Disconnect(connection) => inner(connectedActors.filterNot { _ == connection })
-        case message: OutgoingMessage =>
-          connectedActors.foreach { _ ! message }
-          Behaviors.same
-      }
+    def inner(connectedActors: List[ActorRef[OutgoingMessage]]): Behavior[OutgoingMessage | Exchange.Command] =
+      Behaviors.receive { (context, message) =>
+        message match {
+          case Connect(connection) => inner(connection :: connectedActors)
+          case Disconnect(connection) => inner(connectedActors.filterNot { _ == connection })
+          case message: OutgoingMessage =>
+            context.log.debug(s"Relaying message ${message.text} to $connectedActors")
+            connectedActors.foreach { _ ! message }
+            Behaviors.same
+        }
+    }
 
     inner(Nil)
   }
