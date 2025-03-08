@@ -6,7 +6,9 @@ import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.apache.pekko.http.scaladsl.model.ws.{Message, TextMessage, WebSocketRequest}
+import org.apache.pekko.stream.OverflowStrategy
 import org.apache.pekko.stream.scaladsl.{Keep, Sink, Source}
+import org.apache.pekko.stream.typed.scaladsl.ActorSource
 
 import scala.concurrent.{ExecutionContextExecutor, Future}
 import scala.io.StdIn.readLine
@@ -32,10 +34,15 @@ object Main extends App {
     }
 
   // send this as a message over the WebSocket
-  val outgoing = Source.single(TextMessage("{\"text\":\"Hello world!\", \"to\":\"foo\", \"id\":\"whatever\"}"))
+  val (sendingActor, source) = ActorSource.actorRef(
+    completionMatcher = PartialFunction.empty[TextMessage, Unit],
+    failureMatcher = PartialFunction.empty[TextMessage, Throwable],
+    bufferSize = 256,
+    overflowStrategy = OverflowStrategy.dropHead
+  ).preMaterialize()
 
   val (upgradeResponse, closed) =
-    outgoing
+    source
       .viaMat(webSocketFlow)(Keep.right) // keep the materialized Future[WebSocketUpgradeResponse]
       .toMat(incoming)(Keep.both) // also keep the Future[Done]
       .run()
@@ -55,5 +62,10 @@ object Main extends App {
       println("Finished")
       System.exit(0)
     case _ => println("Failed")
+  }
+
+  while (true) {
+    val message = readLine()
+    sendingActor ! TextMessage(s"{\"text\":\"$message\", \"to\":\"foo\", \"id\":\"whatever\"}")
   }
 }
