@@ -1,76 +1,49 @@
 package org.chats
 
-import model.Model
+import dto.OutputMessageDto
+import service.MessageService
+import view.SimpleTextView
 
 import org.apache.pekko.Done
 import org.apache.pekko.actor.typed.ActorSystem
-import org.apache.pekko.actor.typed.scaladsl.AskPattern.*
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.http.scaladsl.model.ws.{Message, TextMessage}
 import org.apache.pekko.stream.scaladsl.Sink
 
-import java.util.concurrent.TimeUnit
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, ExecutionContextExecutor, Future}
-import scala.io.StdIn.readLine
-import scala.util.{Success, Try}
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Success
 
-implicit val system: ActorSystem[Any] = ActorSystem(Behaviors.empty, "my-system")
-implicit val executionContext: ExecutionContextExecutor = system.executionContext
+given system: ActorSystem[Any] = ActorSystem(Behaviors.empty, "my-system")
+given executionContext: ExecutionContext = system.executionContext
 
-trait ServiceMessage
-case object ConnectionClosed extends ServiceMessage
-final case class InputMessageDto(id: String, to: String, text: String)
-final case class OutputMessageDto(id: String, from: String, text: String)
+object Main {
+  private val chatView = SimpleTextView()
 
-object Main extends App {
-  println("Welcome! Please enter your username")
-  val userName = readLine()
+  def main(args: Array[String]): Unit = {
+    val userName = chatView.login()
+    val messageService = MessageService(userName)
+    // Subscribe view to model changes
+    val (upgradeResponse, connected, closed) = messageService.subscribe(Sink.foreach(chatView.displayMessage))
 
-  val model = Model(userName)
-
-  // Future[Done] is the materialized value of Sink.foreach,
-  // emitted when the stream completes
-  val incoming: Sink[Message, Future[Done]] =
-    Sink.foreach[Message] {
-      case message: TextMessage.Strict =>
-        println(message.text)
+    // in a real application you would not side effect here
+    connected.onComplete(println)
+    closed.onComplete {
+      // TODO: we should try reconnect if websocket closed
+      case s: Success[Any] =>
+        println("Finished")
+        System.exit(0)
       case _ =>
-      // ignore other message types
+        println("Failed")
+        System.exit(1)
     }
 
-  val (upgradeResponse, connected, closed) = model.start(incoming)
-
-  // in a real application you would not side effect here
-  connected.onComplete(println)
-  closed.onComplete {
-    case s: Success[Any] =>
-      println("Finished")
-      System.exit(0)
-    case _ =>
-      println("Failed")
-      System.exit(1)
-  }
-
-  sys.addShutdownHook {
-    system.log.info("Shutting down")
-    val x = Try {
-      Await.ready(Future {
-        model.close()
-      }, Duration(3, TimeUnit.SECONDS))
+    sys.addShutdownHook {
+      system.log.info("Shutting down")
+      messageService.close()
+      println("Goodbye!")
     }
 
-    println("Goodbye!")
-  }
-
-//  CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseBeforeServiceUnbind, "someTaskName") { () =>
-//    system.log.info("Shutting down")
-//    sendingActor.ask[Done](ref => ConnectionClosed(ref))(timeout = Timeout(1, TimeUnit.SECONDS))
-//      .andThen(_ => println("Goodbye"))
-//  }
-
-  while (true) {
-    val message = readLine()
-    model.send(InputMessageDto("whatever", "foo", message))
+    while (true) {
+      messageService.send(chatView.readMessage())
+    }
   }
 }

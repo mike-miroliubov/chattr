@@ -1,5 +1,6 @@
 package org.chats
 
+import dto.{InputMessageDto, MessengerJsonProtocol, OutputMessageDto}
 import service.ClientActor.{GreetingsMessage, IncomingMessage, OutgoingMessage, ServiceCommand}
 import service.{ClientActor, ClientManagerActor}
 
@@ -14,12 +15,11 @@ import org.apache.pekko.stream.OverflowStrategy
 import org.apache.pekko.stream.scaladsl.{Flow, Sink, Source}
 import org.apache.pekko.stream.typed.scaladsl.{ActorSink, ActorSource}
 import org.apache.pekko.util.Timeout
-import org.chats.dto.{InputMessageDto, MessengerJsonProtocol, OutputMessageDto}
+import spray.json.*
 
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Future, Promise}
-import spray.json.*
 
 object Api extends Directives with MessengerJsonProtocol {
   def handleWsRequest(request: HttpRequest): Future[HttpResponse] = request match {
@@ -78,7 +78,7 @@ object Api extends Directives with MessengerJsonProtocol {
         }
         .mapAsync(1)(m => m.toStrict(Duration(3, TimeUnit.SECONDS)))
         .map { m =>
-          val dto = m.getStrictText.parseJson.convertTo[InputMessageDto]
+          val dto = m.text.parseJson.convertTo[InputMessageDto]
           IncomingMessage(dto.id, dto.text, dto.to, "")
         } // transform WS message to an IncomingMessage DTO
         .to(ActorSink.actorRef( // process messages with a ClientActor by dumping to an ActorSink
