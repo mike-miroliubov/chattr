@@ -30,10 +30,10 @@ class MessageService(userName: String) {
     overflowStrategy = OverflowStrategy.dropHead
   ).preMaterialize()
 
-  def subscribe(incoming: Sink[OutputMessageDto, Future[Done]]): (Future[WebSocketUpgradeResponse], Future[Done], Future[Done]) = {
+  def subscribe[D](incoming: Sink[OutputMessageDto, D]): (Future[WebSocketUpgradeResponse], Future[Done], D) = {
     val (upgradeResponse, closed) =
       source
-        .map { case o: InputMessageDto => TextMessage(o.toJson.toString) }
+        .map { case o: InputMessageDto => TextMessage(o.toJson.compactPrint) }
         // route input flow to websocket, keep the materialized Future[WebSocketUpgradeResponse]
         .viaMat(webSocketFlow)(Keep.right)
         // transform output flow
@@ -65,6 +65,6 @@ class MessageService(userName: String) {
   }
 
   def close(): Unit = {
-    sendingActor ! ConnectionClosed // this doesn't really work because probably the Actor system is already downing
+    sendingActor ! ConnectionClosed
   }
 }

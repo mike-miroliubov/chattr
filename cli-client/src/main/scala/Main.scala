@@ -39,11 +39,13 @@ object Main {
     sys.addShutdownHook {
       system.log.info("Shutting down")
       messageService.close()
-      println("Goodbye!")
+      chatView.displayNote("Goodbye!")
     }
 
     while (true) {
-      messageService.send(chatView.readMessage())
+      for {
+        message <- chatView.readMessage()
+      } yield messageService.send(message)
     }
   }
 }
