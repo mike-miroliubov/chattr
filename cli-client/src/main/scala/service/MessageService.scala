@@ -32,10 +32,8 @@ class MessageService {
 
   // Broadcast hub will dynamically connect multiple subscriber sinks as needed
   private val hub = BroadcastHub.sink[OutputMessageDto]
-  // this source will appear once we are connected
-  private var broadcastSource: Option[Source[OutputMessageDto, _]] = None
 
-  def connect(userName: String): (Future[WebSocketUpgradeResponse], Future[Done]) = {
+  def connect(userName: String): (Future[WebSocketUpgradeResponse], Future[Done], Connector) = {
     val webSocketFlow = Http().webSocketClientFlow(WebSocketRequest(s"ws://localhost:8081/api/connect?userName=$userName"))
 
     val (upgradeResponse, broadcast) =
@@ -56,8 +54,6 @@ class MessageService {
         .toMat(hub)(Keep.both)
         .run()
 
-    broadcastSource = Some(broadcast)
-
     val connected = upgradeResponse.map { upgrade =>
       if (upgrade.response.status != StatusCodes.SwitchingProtocols) {
         throw new RuntimeException(s"Connection failed: ${upgrade.response.status}")
@@ -66,15 +62,7 @@ class MessageService {
       Done
     }
 
-    (upgradeResponse, connected)
-  }
-
-  def subscribe[D](incoming: Sink[OutputMessageDto, D]): D = {
-    sinks += incoming
-    broadcastSource match {
-      case Some(value) => value.toMat(incoming)(Keep.right).run()
-      case None => throw RuntimeException("Service not yet connected!")
-    }
+    (upgradeResponse, connected, Connector(broadcast))
   }
 
   def send(message: InputMessageDto): Unit = {
@@ -83,5 +71,11 @@ class MessageService {
 
   def close(): Unit = {
     sendingActor ! ConnectionClosed
+  }
+}
+
+private class Connector(val broadcast: Source[OutputMessageDto, _]) {
+  def connect[D](incoming: Sink[OutputMessageDto, D]): D = {
+    broadcast.toMat(incoming)(Keep.right).run()
   }
 }

@@ -12,12 +12,11 @@ sealed trait ViewCommand {
 
 class SimpleTextView {
   private class ChangeChatCommand(val chatId: String) extends ViewCommand {
-    override def execute(): Unit = {
-      SimpleTextView.this.chatId = Some(chatId)
-    }
+    override def execute(): Unit = SimpleTextView.this.chatId = Some(chatId)
   }
 
   private var chatId: Option[String] = None
+
   def displayMessage(message: OutputMessageDto): Unit = {
     println(s"${message.from}: ${message.text}")
   }
@@ -27,7 +26,7 @@ class SimpleTextView {
   }
 
   def readMessage(): Option[InputMessageDto] = {
-    _parseCommand(readLine()) match {
+    parseCommand(readLine()) match {
       case text: String => chatId.map(InputMessageDto(UUID.randomUUID().toString, _, text))
       case cmd: ViewCommand =>
         cmd.execute()
@@ -35,7 +34,7 @@ class SimpleTextView {
     }
   }
 
-  def _parseCommand(str: String): ViewCommand | String = str match {
+  private def parseCommand(str: String): ViewCommand | String = str match {
     case s"\\w $username" => ChangeChatCommand(username)
     case s"\\with $username" => ChangeChatCommand(username)
     case _ => str

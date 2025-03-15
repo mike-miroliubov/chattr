@@ -21,9 +21,9 @@ object Main {
 
   def main(args: Array[String]): Unit = {
     val userName = chatView.login()
-    val (upgradeResponse, connected) = messageService.connect(userName)
+    val (upgradeResponse, connected, connector) = messageService.connect(userName)
     // Subscribe view to model changes
-    val closed = messageService.subscribe(Sink.foreach(chatView.displayMessage))
+    val closed = connector.connect(Sink.foreach(chatView.displayMessage))
 
     // in a real application you would not side effect here
     connected.onComplete(println)
