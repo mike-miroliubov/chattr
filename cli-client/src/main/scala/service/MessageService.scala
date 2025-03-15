@@ -3,22 +3,22 @@ package service
 
 import dto.{ConnectionClosed, InputMessageDto, OutputMessageDto, ServiceMessage, given}
 
-import org.apache.pekko.Done
+import org.apache.pekko.{Done, NotUsed}
 import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.apache.pekko.http.scaladsl.model.ws.*
 import org.apache.pekko.stream.OverflowStrategy
-import org.apache.pekko.stream.scaladsl.{Flow, Keep, Sink, Source}
+import org.apache.pekko.stream.scaladsl.{BroadcastHub, Flow, Keep, Sink, Source}
 import org.apache.pekko.stream.typed.scaladsl.ActorSource
 import spray.json.*
 
 import java.util.concurrent.TimeUnit
+import scala.collection.mutable
 import scala.concurrent.Future
 import scala.concurrent.duration.FiniteDuration
 
-class MessageService(userName: String) {
-  private val webSocketFlow: Flow[Message, Message, Future[WebSocketUpgradeResponse]] = Http().webSocketClientFlow(WebSocketRequest(s"ws://localhost:8081/api/connect?userName=$userName"))
-
+class MessageService {
+  private val sinks: mutable.Buffer[Sink[OutputMessageDto, _]] = mutable.Buffer()
   // send this as a message over the WebSocket
   private val (sendingActor, source) = ActorSource.actorRef[InputMessageDto | ServiceMessage](
     completionMatcher = {
@@ -30,8 +30,15 @@ class MessageService(userName: String) {
     overflowStrategy = OverflowStrategy.dropHead
   ).preMaterialize()
 
-  def subscribe[D](incoming: Sink[OutputMessageDto, D]): (Future[WebSocketUpgradeResponse], Future[Done], D) = {
-    val (upgradeResponse, closed) =
+  // Broadcast hub will dynamically connect multiple subscriber sinks as needed
+  private val hub = BroadcastHub.sink[OutputMessageDto]
+  // this source will appear once we are connected
+  private var broadcastSource: Option[Source[OutputMessageDto, _]] = None
+
+  def connect(userName: String): (Future[WebSocketUpgradeResponse], Future[Done]) = {
+    val webSocketFlow = Http().webSocketClientFlow(WebSocketRequest(s"ws://localhost:8081/api/connect?userName=$userName"))
+
+    val (upgradeResponse, broadcast) =
       source
         .map { case o: InputMessageDto => TextMessage(o.toJson.compactPrint) }
         // route input flow to websocket, keep the materialized Future[WebSocketUpgradeResponse]
@@ -46,8 +53,10 @@ class MessageService(userName: String) {
         .mapAsync(1)(_.toStrict(FiniteDuration(3, TimeUnit.SECONDS)))
         .map(m => m.text.parseJson.convertTo[OutputMessageDto])
         // route output flow to sink, also keep the Future[Done]
-        .toMat(incoming)(Keep.both)
+        .toMat(hub)(Keep.both)
         .run()
+
+    broadcastSource = Some(broadcast)
 
     val connected = upgradeResponse.map { upgrade =>
       if (upgrade.response.status != StatusCodes.SwitchingProtocols) {
@@ -57,7 +66,15 @@ class MessageService(userName: String) {
       Done
     }
 
-    (upgradeResponse, connected, closed)
+    (upgradeResponse, connected)
+  }
+
+  def subscribe[D](incoming: Sink[OutputMessageDto, D]): D = {
+    sinks += incoming
+    broadcastSource match {
+      case Some(value) => value.toMat(incoming)(Keep.right).run()
+      case None => throw RuntimeException("Service not yet connected!")
+    }
   }
 
   def send(message: InputMessageDto): Unit = {

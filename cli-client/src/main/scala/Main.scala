@@ -17,12 +17,13 @@ given executionContext: ExecutionContext = system.executionContext
 
 object Main {
   private val chatView = SimpleTextView()
+  private val messageService = MessageService()
 
   def main(args: Array[String]): Unit = {
     val userName = chatView.login()
-    val messageService = MessageService(userName)
+    val (upgradeResponse, connected) = messageService.connect(userName)
     // Subscribe view to model changes
-    val (upgradeResponse, connected, closed) = messageService.subscribe(Sink.foreach(chatView.displayMessage))
+    val closed = messageService.subscribe(Sink.foreach(chatView.displayMessage))
 
     // in a real application you would not side effect here
     connected.onComplete(println)
