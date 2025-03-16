@@ -3,37 +3,72 @@ package service
 
 import dto.{ConnectionClosed, InputMessageDto, OutputMessageDto, ServiceMessage, given}
 
-import org.apache.pekko.{Done, NotUsed}
+import org.apache.pekko.actor.typed.ActorRef
 import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.apache.pekko.http.scaladsl.model.ws.*
 import org.apache.pekko.stream.OverflowStrategy
-import org.apache.pekko.stream.scaladsl.{BroadcastHub, Flow, Keep, Sink, Source}
+import org.apache.pekko.stream.scaladsl.{BroadcastHub, Keep, Sink, Source}
 import org.apache.pekko.stream.typed.scaladsl.ActorSource
+import org.apache.pekko.{Done, NotUsed}
 import spray.json.*
 
 import java.util.concurrent.TimeUnit
-import scala.collection.mutable
 import scala.concurrent.Future
 import scala.concurrent.duration.FiniteDuration
+import scala.util.{Failure, Success}
 
 class MessageService {
-  private val sinks: mutable.Buffer[Sink[OutputMessageDto, _]] = mutable.Buffer()
-  // send this as a message over the WebSocket
-  private val (sendingActor, source) = ActorSource.actorRef[InputMessageDto | ServiceMessage](
-    completionMatcher = {
-      case ConnectionClosed =>
-        println("Closed the stream")
-    },
-    failureMatcher = PartialFunction.empty[InputMessageDto | ServiceMessage, Throwable],
-    bufferSize = 256,
-    overflowStrategy = OverflowStrategy.dropHead
-  ).preMaterialize()
-
   // Broadcast hub will dynamically connect multiple subscriber sinks as needed
   private val hub = BroadcastHub.sink[OutputMessageDto]
 
-  def connect(userName: String): (Future[WebSocketUpgradeResponse], Future[Done], Connector) = {
+  private val (reconnectQueue, reconnect) = Source.queue[Done](bufferSize = 1, OverflowStrategy.dropHead).preMaterialize()
+  private val (inputQueue, input) = Source.queue[Source[OutputMessageDto, _]](bufferSize = 16, OverflowStrategy.dropHead).preMaterialize()
+  private var outputActor: Option[ActorRef[InputMessageDto | ServiceMessage]] = None
+
+  def connect(userName: String): Source[OutputMessageDto, _] = {
+    reconnect.runForeach { _ =>
+      val (upgradeResponse, connected, actor, wsInput) = connectWebSocket(userName)
+      // run the connector against a no-op sink to get a future of when the websocket closes
+      // alternatively we could just pre-materialize it, I guess
+      val done = wsInput.runWith(Sink.ignore)
+
+      // set the actor. We must always create a new actor and stream on re-connecting because the actors dies then
+      // websocket closes
+      outputActor = Some(actor)
+
+      done.onComplete({
+        case s: Success[Any] =>
+        case f: Failure[Any] =>
+          println("Will reconnect in 5 sec")
+          Thread.sleep(5000)
+          reconnectQueue.offer(Done)
+      })
+
+      // push the websocket input stream into a stream
+      // when a WS connection is lost, wsInput stream closes with an exception,
+      // we need to handle it so that the subscriber doesn't drop
+      inputQueue.offer(wsInput.recover { _ => OutputMessageDto("", "", "Connection lost") })
+    }
+
+    // kick off the connection
+    reconnectQueue.offer(Done)
+
+    // flatten so that the client gets a stream of DTO objects, not a stream of streams
+    input.flatten
+  }
+
+  private def connectWebSocket(userName: String): (Future[WebSocketUpgradeResponse], Future[Done], ActorRef[InputMessageDto | ServiceMessage], Source[OutputMessageDto, _]) = {
+    val (sendingActor, source) = ActorSource.actorRef[InputMessageDto | ServiceMessage](
+      completionMatcher = {
+        case ConnectionClosed =>
+          println("Closed the stream")
+      },
+      failureMatcher = PartialFunction.empty[InputMessageDto | ServiceMessage, Throwable],
+      bufferSize = 256,
+      overflowStrategy = OverflowStrategy.dropHead
+    ).preMaterialize()
+
     val webSocketFlow = Http().webSocketClientFlow(WebSocketRequest(s"ws://localhost:8081/api/connect?userName=$userName"))
 
     val (upgradeResponse, broadcast) =
@@ -62,20 +97,20 @@ class MessageService {
       Done
     }
 
-    (upgradeResponse, connected, Connector(broadcast))
+    (upgradeResponse, connected, sendingActor, broadcast)
   }
 
   def send(message: InputMessageDto): Unit = {
-    sendingActor ! message
+    outputActor match {
+      case Some(a) => a ! message
+      case None => ???
+    }
   }
 
   def close(): Unit = {
-    sendingActor ! ConnectionClosed
-  }
-}
-
-private class Connector(val broadcast: Source[OutputMessageDto, _]) {
-  def connect[D](incoming: Sink[OutputMessageDto, D]): D = {
-    broadcast.toMat(incoming)(Keep.right).run()
+    outputActor match {
+      case Some(a) => a ! ConnectionClosed
+      case None => ???
+    }
   }
 }
