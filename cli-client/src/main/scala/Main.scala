@@ -5,12 +5,14 @@ import service.MessageService
 import view.SimpleTextView
 
 import org.apache.pekko.Done
+import org.apache.pekko.actor.CoordinatedShutdown
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.stream.scaladsl.Sink
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Success
+import scala.concurrent.duration.*
 
 given system: ActorSystem[Any] = ActorSystem(Behaviors.empty, "my-system")
 given executionContext: ExecutionContext = system.executionContext
@@ -31,16 +33,16 @@ object Main {
       // TODO: we should try reconnect if websocket closed
       case s: Success[Any] =>
         println("Finished")
-        System.exit(0)
+        //System.exit(0)
       case _ =>
         println("Failed")
-        System.exit(1)
+        //System.exit(1)
     }
 
-    sys.addShutdownHook {
-      system.log.info("Shutting down")
+    CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseBeforeServiceUnbind, "websocketClose") { () =>
       messageService.close()
       chatView.displayNote("Goodbye!")
+      Future.successful(Done)
     }
 
     while (true) {
