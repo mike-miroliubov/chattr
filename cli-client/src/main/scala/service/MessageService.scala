@@ -1,7 +1,7 @@
 package org.chats
 package service
 
-import dto.{ConnectionClosed, InputMessageDto, OutputMessageDto, ServiceMessage, given}
+import dto.{ConnectionClosed, OutputMessageDto, InputMessageDto, ServiceMessage, given}
 
 import org.apache.pekko.actor.typed.ActorRef
 import org.apache.pekko.http.scaladsl.Http
@@ -20,13 +20,13 @@ import scala.util.{Failure, Success}
 
 class MessageService {
   // Broadcast hub will dynamically connect multiple subscriber sinks as needed
-  private val hub = BroadcastHub.sink[OutputMessageDto]
+  private val hub = BroadcastHub.sink[InputMessageDto]
 
   private val (reconnectQueue, reconnect) = Source.queue[Done](bufferSize = 1, OverflowStrategy.dropHead).preMaterialize()
-  private val (inputQueue, input) = Source.queue[Source[OutputMessageDto, _]](bufferSize = 16, OverflowStrategy.dropHead).preMaterialize()
-  private var outputActor: Option[ActorRef[InputMessageDto | ServiceMessage]] = None
+  private val (inputQueue, input) = Source.queue[Source[InputMessageDto, _]](bufferSize = 16, OverflowStrategy.dropHead).preMaterialize()
+  private var outputActor: Option[ActorRef[OutputMessageDto | ServiceMessage]] = None
 
-  def connect(userName: String): Source[OutputMessageDto, _] = {
+  def connect(userName: String): Source[InputMessageDto, _] = {
     reconnect.runForeach { _ =>
       val (upgradeResponse, connected, actor, wsInput) = connectWebSocket(userName)
       // run the connector against a no-op sink to get a future of when the websocket closes
@@ -48,7 +48,7 @@ class MessageService {
       // push the websocket input stream into a stream
       // when a WS connection is lost, wsInput stream closes with an exception,
       // we need to handle it so that the subscriber doesn't drop
-      inputQueue.offer(wsInput.recover { _ => OutputMessageDto("", "", "Connection lost") })
+      inputQueue.offer(wsInput.recover { _ => InputMessageDto("", "", "Connection lost") })
     }
 
     // kick off the connection
@@ -58,13 +58,13 @@ class MessageService {
     input.flatten
   }
 
-  private def connectWebSocket(userName: String): (Future[WebSocketUpgradeResponse], Future[Done], ActorRef[InputMessageDto | ServiceMessage], Source[OutputMessageDto, _]) = {
-    val (sendingActor, source) = ActorSource.actorRef[InputMessageDto | ServiceMessage](
+  private def connectWebSocket(userName: String): (Future[WebSocketUpgradeResponse], Future[Done], ActorRef[OutputMessageDto | ServiceMessage], Source[InputMessageDto, _]) = {
+    val (sendingActor, source) = ActorSource.actorRef[OutputMessageDto | ServiceMessage](
       completionMatcher = {
         case ConnectionClosed =>
           println("Closed the stream")
       },
-      failureMatcher = PartialFunction.empty[InputMessageDto | ServiceMessage, Throwable],
+      failureMatcher = PartialFunction.empty[OutputMessageDto | ServiceMessage, Throwable],
       bufferSize = 256,
       overflowStrategy = OverflowStrategy.dropHead
     ).preMaterialize()
@@ -73,7 +73,7 @@ class MessageService {
 
     val (upgradeResponse, broadcast) =
       source
-        .map { case o: InputMessageDto => TextMessage(o.toJson.compactPrint) }
+        .map { case o: OutputMessageDto => TextMessage(o.toJson.compactPrint) }
         // route input flow to websocket, keep the materialized Future[WebSocketUpgradeResponse]
         .viaMat(webSocketFlow)(Keep.right)
         // transform output flow
@@ -84,7 +84,7 @@ class MessageService {
             None
         }
         .mapAsync(1)(_.toStrict(FiniteDuration(3, TimeUnit.SECONDS)))
-        .map(m => m.text.parseJson.convertTo[OutputMessageDto])
+        .map(m => m.text.parseJson.convertTo[InputMessageDto])
         // route output flow to sink, also keep the Future[Done]
         .toMat(hub)(Keep.both)
         .run()
@@ -100,7 +100,7 @@ class MessageService {
     (upgradeResponse, connected, sendingActor, broadcast)
   }
 
-  def send(message: InputMessageDto): Unit = {
+  def send(message: OutputMessageDto): Unit = {
     outputActor match {
       case Some(a) => a ! message
       case None => ???

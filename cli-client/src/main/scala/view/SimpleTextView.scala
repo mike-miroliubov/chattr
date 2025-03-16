@@ -1,7 +1,7 @@
 package org.chats
 package view
 
-import dto.{InputMessageDto, OutputMessageDto}
+import dto.{OutputMessageDto, InputMessageDto}
 
 import java.util.UUID
 import scala.io.StdIn.readLine
@@ -17,7 +17,7 @@ class SimpleTextView {
 
   private var chatId: Option[String] = None
 
-  def displayMessage(message: OutputMessageDto): Unit = {
+  def displayMessage(message: InputMessageDto): Unit = {
     println(s"${message.from}: ${message.text}")
   }
 
@@ -25,9 +25,9 @@ class SimpleTextView {
     println(s"--- $note ---")
   }
 
-  def readMessage(): Option[InputMessageDto] = {
+  def readMessage(): Option[OutputMessageDto] = {
     parseCommand(readLine()) match {
-      case text: String => chatId.map(InputMessageDto(UUID.randomUUID().toString, _, text))
+      case text: String => chatId.map(OutputMessageDto(UUID.randomUUID().toString, _, text))
       case cmd: ViewCommand =>
         cmd.execute()
         None
