@@ -1,6 +1,6 @@
 package org.chats
 
-import service.MessageService
+import service.MessengerClient
 import view.SimpleTextView
 
 import org.apache.pekko.Done
@@ -15,16 +15,20 @@ given executionContext: ExecutionContext = system.executionContext
 
 object Main {
   private val chatView = SimpleTextView()
-  private val messageService = MessageService()
 
   def main(args: Array[String]): Unit = {
     val userName = chatView.login()
-    val inputStream = messageService.connect(userName)
+    val messengerClient = MessengerClient(userName)
     // Subscribe view to model changes
-    val closed = inputStream.runForeach(chatView.displayMessage)
+    val closed = messengerClient.inputStream.runForeach(chatView.displayMessage)
+
+    messengerClient.closedStream.runForeach { _ =>
+      system.terminate()
+      sys.exit(1)
+    }
 
     CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseBeforeServiceUnbind, "websocketClose") { () =>
-      messageService.close()
+      messengerClient.close()
       chatView.displayNote("Goodbye!")
       Future.successful(Done)
     }
@@ -32,7 +36,7 @@ object Main {
     while (true) {
       for {
         message <- chatView.readMessage()
-      } yield messageService.send(message)
+      } yield messengerClient.send(message)
     }
   }
 }
