@@ -32,7 +32,8 @@ lazy val messenger = project
     idePackagePrefix := Some("org.chats"),
     libraryDependencies ++= commonDependencies ++ Seq(
       "org.apache.pekko" %% "pekko-cluster-typed" % pekkoVersion,
-      "org.apache.pekko" %% "pekko-cluster-sharding-typed" % pekkoVersion
+      "org.apache.pekko" %% "pekko-cluster-sharding-typed" % pekkoVersion,
+      "org.apache.pekko" %% "pekko-persistence-typed" % pekkoVersion,
     )
   )
 

@@ -15,16 +15,18 @@ import scala.util.{Failure, Success}
 // This was ActorSystem[Any] in the Pekko Http docs, not sure if its okay to reuse this system for application's actors
 // or we need to build a new one. This somehow works for now.
 implicit val system: ActorSystem[ClientManagerActor.Command] = ActorSystem(
-  Behaviors.setup(context => ClientManagerActor(context)), "my-system", configureClusterPort())
+  Behaviors.setup(context => ClientManagerActor(context)), "my-system", customizeConfigWithEnvironment())
 
 val sharding = ClusterSharding(system)
 // Makes sure the ShardRegion is initialized at startup
 val shardRegion = Exchange.shardRegion
 
-private def configureClusterPort(): Config = {
+private def customizeConfigWithEnvironment(): Config = {
   ConfigFactory.parseString(
     s"""
     pekko.remote.artery.canonical.port=${sys.env.getOrElse("CLUSTER_PORT", "7354")}
+    pekko.persistence.journal.proxy.start-target-journal = ${if sys.env.isDefinedAt("IS_MAIN_INSTANCE") then "on" else "off"}
+    pekko.persistence.snapshot-store.proxy.start-target-snapshot-store = ${if sys.env.isDefinedAt("IS_MAIN_INSTANCE") then "on" else "off"}
     """).withFallback(ConfigFactory.load())
 }
 
