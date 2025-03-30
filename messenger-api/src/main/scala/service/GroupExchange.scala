@@ -26,6 +26,7 @@ object GroupExchange {
   final case class GroupCreated(owner: String, members: Set[String]) extends Event
   final case class MemberAdded(userId: String) extends Event
   final case class MemberRemoved(userId: String) extends Event
+  case object GroupClosed extends Event
 
   final case class State(owner: String, members: Set[String])
 
@@ -42,11 +43,12 @@ object GroupExchange {
   private def handleEvent(state: Option[State], event: Event) = {
     state match {
       case Some(s) =>
-        Some(event match {
-          case MemberAdded(userId) => s.copy(members = s.members + userId)
-          case MemberRemoved(userId) => s.copy(members = s.members - userId)
-          case _ => s
-        })
+        event match {
+          case MemberAdded(userId) => Some(s.copy(members = s.members + userId))
+          case MemberRemoved(userId) => Some(s.copy(members = s.members - userId))
+          case GroupClosed => None
+          case _ => state
+        }
       case None =>
         event match {
           case GroupCreated(owner, members) => Some(State(owner, members))
@@ -64,7 +66,7 @@ object GroupExchange {
           case MakeGroup(owner, members) => Effect.none
           case AddMember(member) => Effect.persist(MemberAdded(member))
           case RemoveMember(member) => Effect.persist(MemberRemoved(member))
-          case CloseGroup => Effect.stop()
+          case CloseGroup => Effect.persist(GroupClosed).thenStop()
           case message: OutgoingMessage =>
             relayMessage(context, s, message)
             Effect.none
