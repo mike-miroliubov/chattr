@@ -1,12 +1,14 @@
 package org.chats
 
-import service.{ClientManagerActor, Exchange}
+import service.{ClientManagerActor, Exchange, GroupExchange}
 
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
+import org.apache.pekko.cluster.sharding.typed.ShardingEnvelope
 import org.apache.pekko.cluster.sharding.typed.scaladsl.ClusterSharding
 import org.apache.pekko.http.scaladsl.Http
+import org.chats.service.GroupExchange.MakeGroup
 
 import scala.concurrent.ExecutionContextExecutor
 import scala.io.StdIn
@@ -20,6 +22,7 @@ implicit val system: ActorSystem[ClientManagerActor.Command] = ActorSystem(
 val sharding = ClusterSharding(system)
 // Makes sure the ShardRegion is initialized at startup
 val shardRegion = Exchange.shardRegion
+val groupShardRegion = GroupExchange.shardRegion
 
 private def customizeConfigWithEnvironment(): Config = {
   ConfigFactory.parseString(
@@ -39,6 +42,9 @@ object MessengerMain {
     val host = "localhost"
     val port = sys.env.getOrElse("MESSENGER_PORT", "8081").toInt
     val binding = Http().newServerAt(host, port).bind(Api.handleWsRequest)
+
+    // TODO: remove, this is a test group
+    groupShardRegion ! ShardingEnvelope("g#test-group", MakeGroup("morpheus", Set("kite", "foo", "neo")))
 
     StdIn.readLine() // let it run until user presses return
 

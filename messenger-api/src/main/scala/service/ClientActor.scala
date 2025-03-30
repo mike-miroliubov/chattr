@@ -29,7 +29,10 @@ class ClientActor(context: ActorContext[ClientActor.Command],
       context.log.info("Got message: {}", in.text)
       // Because we don't know where the recepient client actor lives we instead send it to an exchange of that user.
       // This will create an empty exchange if that user is not online.
-      Exchange.shardRegion ! ShardingEnvelope(in.to, OutgoingMessage(in.messageId, in.text, userId))
+      in.to match {
+        case s"g#${_}" => GroupExchange.shardRegion ! ShardingEnvelope(in.to, OutgoingMessage(in.messageId, in.text, userId))
+        case _ => Exchange.shardRegion ! ShardingEnvelope(in.to, OutgoingMessage(in.messageId, in.text, userId))
+      }
 
       this
     case out: OutgoingMessage =>
