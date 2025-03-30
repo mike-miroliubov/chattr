@@ -6,7 +6,8 @@ import org.apache.pekko.actor.typed.{ActorRef, Behavior}
 import org.apache.pekko.cluster.sharding.typed.ShardingEnvelope
 import org.apache.pekko.cluster.sharding.typed.scaladsl.{Entity, EntityTypeKey}
 import org.apache.pekko.persistence.typed.PersistenceId
-import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
+import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
+import org.chats.config.serialization.JsonSerializable
 import org.chats.service.ClientActor.OutgoingMessage
 
 object GroupExchange {
@@ -16,19 +17,19 @@ object GroupExchange {
   val shardRegion: ActorRef[ShardingEnvelope[OutgoingMessage | Command]] =
     sharding.init(Entity(typeKey)(createBehavior = entityContext => GroupExchange(entityContext.entityId, PersistenceId(entityContext.entityTypeKey.name, entityContext.entityId))))
 
-  sealed trait Command
+  sealed trait Command extends JsonSerializable
   final case class MakeGroup(owner: String, members: Set[String]) extends Command
   final case class AddMember(userId: String) extends Command
   final case class RemoveMember(userId: String) extends Command
   case object CloseGroup extends Command
 
-  sealed trait Event
+  sealed trait Event extends JsonSerializable
   final case class GroupCreated(owner: String, members: Set[String]) extends Event
   final case class MemberAdded(userId: String) extends Event
   final case class MemberRemoved(userId: String) extends Event
   case object GroupClosed extends Event
 
-  final case class State(owner: String, members: Set[String])
+  final case class State(owner: String, members: Set[String]) extends JsonSerializable
 
   def apply(groupId: String, persistenceId: PersistenceId): Behavior[OutgoingMessage | Command] =
     Behaviors.setup { context =>
@@ -37,7 +38,11 @@ object GroupExchange {
         emptyState = None,
         commandHandler = (state, cmd) => handleCommand(context, state, cmd),
         eventHandler = handleEvent
-      )
+      ).snapshotWhen {
+        case (state, GroupCreated(_, _), sequence) => true
+        case (state, GroupClosed, sequence) => true
+        case (state, _, sequence) => false
+      }.withRetention(RetentionCriteria.snapshotEvery(5, keepNSnapshots = 1))
   }
 
   private def handleEvent(state: Option[State], event: Event) = {

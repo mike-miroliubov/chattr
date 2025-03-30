@@ -9,6 +9,7 @@ import org.apache.pekko.cluster.sharding.typed.ShardingEnvelope
 import org.apache.pekko.cluster.sharding.typed.scaladsl.{Entity, EntityTypeKey}
 import org.apache.pekko.persistence.typed.PersistenceId
 import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
+import org.chats.config.serialization.JsonSerializable
 
 
 /**
@@ -24,15 +25,15 @@ object Exchange {
   val shardRegion: ActorRef[ShardingEnvelope[OutgoingMessage | Exchange.Command]] =
     sharding.init(Entity(typeKey)(createBehavior = entityContext => Exchange(entityContext.entityId, PersistenceId(entityContext.entityTypeKey.name, entityContext.entityId))))
 
-  sealed trait Command
+  sealed trait Command extends JsonSerializable
   final case class Connect(connection: ActorRef[OutgoingMessage]) extends Command
   final case class Disconnect(connection: ActorRef[OutgoingMessage]) extends Command
 
-  sealed trait Event
+  sealed trait Event extends JsonSerializable
   final case class Connected(connection: ActorRef[OutgoingMessage]) extends Event
   final case class Disconnected(connection: ActorRef[OutgoingMessage]) extends Event
 
-  final case class State(connectedActors: Set[ActorRef[OutgoingMessage]])
+  final case class State(connectedActors: Set[ActorRef[OutgoingMessage]]) extends JsonSerializable
 
   /**
    * This actor is implemented as function, rather than as a class. This actor is a persistent one,

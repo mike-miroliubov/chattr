@@ -87,7 +87,7 @@ class MessengerClient(userName: String) {
 
     val webSocketFlow = RestartFlow.withBackoff(restartSettings) { () =>
       val (upgradeResponse, originalFlow) = Http()
-        .webSocketClientFlow(WebSocketRequest(s"ws://localhost:8081/api/connect?userName=$userName"))
+        .webSocketClientFlow(WebSocketRequest(s"ws://localhost:8082/api/connect?userName=$userName"))
         .preMaterialize()
 
       // Because connection might be reattempted many times, we need a stream rather than a Future.

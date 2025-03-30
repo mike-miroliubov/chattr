@@ -3,11 +3,11 @@ package service
 
 import service.ClientActor.*
 
-import org.apache.pekko.actor.ActorRef as UntypedActorRef
 import org.apache.pekko.actor.typed.scaladsl.AskPattern.*
 import org.apache.pekko.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
 import org.apache.pekko.actor.typed.{ActorRef, Behavior, PostStop, Signal}
 import org.apache.pekko.cluster.sharding.typed.ShardingEnvelope
+import org.chats.config.serialization.JsonSerializable
 
 /**
  * This is the main user actor. It handles user's incoming and outgoing messages.
@@ -56,7 +56,7 @@ class ClientActor(context: ActorContext[ClientActor.Command],
 }
 
 object ClientActor {
-  sealed trait Command
+  sealed trait Command extends JsonSerializable
   final case class IncomingMessage(messageId: String, text: String, to: String, from: String) extends Command
   final case class OutgoingMessage(messageId: String, text: String, from: String) extends Command
   case object GreetingsMessage extends Command

@@ -34,7 +34,9 @@ lazy val messenger = project
       "org.apache.pekko" %% "pekko-cluster-typed" % pekkoVersion,
       "org.apache.pekko" %% "pekko-cluster-sharding-typed" % pekkoVersion,
       "org.apache.pekko" %% "pekko-persistence-typed" % pekkoVersion,
-    )
+      "org.apache.pekko" %% "pekko-serialization-jackson" % pekkoVersion
+    ),
+    javacOptions += "-parameters"
   )
 
 lazy val chatsApi = project
