@@ -15,8 +15,7 @@ import org.apache.pekko.cluster.sharding.typed.ShardingEnvelope
  */
 class ClientActor(context: ActorContext[ClientActor.Command],
                   userId: String,
-                  outputActor: ActorRef[OutgoingMessage | ServiceCommand],
-                  router: UntypedActorRef,
+                  outputActor: ActorRef[OutgoingMessage | ServiceCommand]
                  ) extends AbstractBehavior[ClientActor.Command](context) {
   context.log.info("User {} joined", userId)
 
