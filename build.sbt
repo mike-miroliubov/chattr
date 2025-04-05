@@ -22,7 +22,10 @@ val commonDependencies = Seq(
   "org.apache.pekko" %% "pekko-http-spray-json" % pekkoHttpVersion,
   // include an slf4j implementation so that we have logging
   "ch.qos.logback" % "logback-classic" % "1.5.15",
-  "org.apache.pekko" %% "pekko-stream-typed" % pekkoVersion
+  "org.apache.pekko" %% "pekko-stream-typed" % pekkoVersion,
+
+  // test dependencies
+  "org.scalatest" %% "scalatest" % "3.2.17" % Test
 )
 
 lazy val messenger = project
@@ -34,9 +37,12 @@ lazy val messenger = project
       "org.apache.pekko" %% "pekko-cluster-typed" % pekkoVersion,
       "org.apache.pekko" %% "pekko-cluster-sharding-typed" % pekkoVersion,
       "org.apache.pekko" %% "pekko-persistence-typed" % pekkoVersion,
-      "org.apache.pekko" %% "pekko-serialization-jackson" % pekkoVersion
+      "org.apache.pekko" %% "pekko-serialization-jackson" % pekkoVersion,
+      "org.apache.pekko" %% "pekko-http-testkit" % pekkoHttpVersion,
+      "org.apache.pekko" %% "pekko-stream-testkit" % pekkoVersion,
+      "org.apache.pekko" %% "pekko-actor-testkit-typed" % pekkoVersion,
     ),
-    javacOptions += "-parameters"
+    javacOptions += "-parameters",
   )
 
 lazy val chatsApi = project
