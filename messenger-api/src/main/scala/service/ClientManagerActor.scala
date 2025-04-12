@@ -6,15 +6,21 @@ import service.ClientManagerActor.ConnectClient
 
 import org.apache.pekko.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
 import org.apache.pekko.actor.typed.{ActorRef, Behavior, PostStop, Signal}
+import org.chats.config.{ExchangeShardRegion, GroupShardRegion}
 
 /**
  * This is the root class of all client actors. It handles creation of new actors as users connect.
  */
-class ClientManagerActor(context: ActorContext[ClientManagerActor.Command]) extends AbstractBehavior[ClientManagerActor.Command](context) {
+class ClientManagerActor(context: ActorContext[ClientManagerActor.Command],
+                         exchangeShardRegionSupplier: => ExchangeShardRegion, // using call by name to solve
+                         groupShardRegionSupplier: => GroupShardRegion)       // the circular dependency
+                         extends AbstractBehavior[ClientManagerActor.Command](context) {
   context.log.info("Messenger Application started")
 
   override def onMessage(msg: ClientManagerActor.Command): Behavior[ClientManagerActor.Command] = msg match {
     case ConnectClient(userId, output, replyTo) =>
+      given groupShardRegion: GroupShardRegion = groupShardRegionSupplier
+      given userShardingRegion: ExchangeShardRegion = exchangeShardRegionSupplier
       val actor = context.child(userId)
         .getOrElse(context.spawn(Behaviors.setup(context => ClientActor(context, userId, output)), s"client-$userId"))
         .unsafeUpcast[ClientActor.Command]

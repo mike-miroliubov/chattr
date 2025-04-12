@@ -5,7 +5,7 @@ import service.ClientActor.{GreetingsMessage, IncomingMessage, OutgoingMessage, 
 import service.{ClientActor, ClientManagerActor}
 
 import org.apache.pekko.NotUsed
-import org.apache.pekko.actor.typed.ActorRef
+import org.apache.pekko.actor.typed.{ActorRef, ActorSystem}
 import org.apache.pekko.actor.typed.scaladsl.AskPattern.*
 import org.apache.pekko.http.scaladsl.model.HttpMethods.GET
 import org.apache.pekko.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage, WebSocketUpgrade}
@@ -19,9 +19,9 @@ import spray.json.*
 
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.Duration
-import scala.concurrent.{Future, Promise}
+import scala.concurrent.{ExecutionContext, Future, Promise}
 
-object Api extends Directives with MessengerJsonProtocol {
+class Api(using system: ActorSystem[ClientManagerActor.Command], executionContext: ExecutionContext) extends Directives with MessengerJsonProtocol {
   def handleWsRequest(request: HttpRequest): Future[HttpResponse] = request match {
     // WS connections are only allowed at /api/connect endpoint
     case req @ HttpRequest(GET, Uri.Path("/api/connect"), _, _, _) =>

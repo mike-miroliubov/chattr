@@ -1,11 +1,10 @@
 package org.chats
 
 import dto.{InputMessageDto, MessengerJsonProtocol}
-import service.{Exchange, GroupExchange}
 
 import com.typesafe.config.ConfigFactory
-import org.apache.pekko.actor.testkit.typed.scaladsl.ActorTestKit
-import org.apache.pekko.cluster.sharding.typed.scaladsl.ClusterSharding
+import org.apache.pekko.actor.typed.ActorSystem
+import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.model.ws.{TextMessage, WebSocketRequest}
 import org.apache.pekko.stream.scaladsl.{Keep, Sink, Source}
@@ -16,27 +15,17 @@ import spray.json.*
 import scala.concurrent.Future
 
 class ApiIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with MessengerJsonProtocol {
-//  implicit val system: ActorSystem[ClientManagerActor.Command] = ActorSystem(
-//    Behaviors.setup(context => ClientManagerActor(context)), "my-system", customizeConfigWithEnvironment())
+  private val config = IntegrationTestConfig()
+  private val server = Http()(using config.system).newServerAt("localhost", 0)
+  private val binding = server.bind(Api(using config.system, config.system.executionContext).handleWsRequest)
 
-//  val sharding = ClusterSharding(system)
-//  // Makes sure the ShardRegion is initialized at startup
-//  val shardRegion = Exchange.shardRegion
-//  val groupShardRegion = GroupExchange.shardRegion
-
-  private val server = Http().newServerAt("localhost", 0)
-  private val binding = server.bind(Api.handleWsRequest)
+  implicit val clientSystem: ActorSystem[_] = ActorSystem(Behaviors.empty, "test-system", ConfigFactory.load("application-client-test.conf"))
 
   "Clients" should "send and receive messages" in {
     binding.flatMap { b =>
-      Thread.sleep(15000)
+      Thread.sleep(5000)
 
-//      val clientSource1 = Source(Seq(
-//        InputMessageDto("1", "bar", "hi"),
-//        InputMessageDto("2", "bar", "hey"),
-//        InputMessageDto("3", "bar", "yo")
-//      ))
-      val (clientQueue1, clientSource1) = Source.queue[InputMessageDto](3).preMaterialize()
+      val clientSource1 = Source.queue[InputMessageDto](3)
       val clientFlow1 = Http().webSocketClientFlow(WebSocketRequest(s"ws:/${b.localAddress}/api/connect?userName=foo"))
       val clientSink1 = Sink.queue[String]()
 
@@ -44,11 +33,13 @@ class ApiIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with Messe
       val clientFlow2 = Http().webSocketClientFlow(WebSocketRequest(s"ws:/${b.localAddress}/api/connect?userName=bar"))
       val clientSink2 = Sink.queue[String]()
 
+      Thread.sleep(5000)
+
       val client1Messages = clientSource1
         .map { input => TextMessage(input.toJson.toString) }
-        .via(clientFlow1)
+        .viaMat(clientFlow1)(Keep.left)
         .map { _.asTextMessage.getStrictText }
-        .toMat(clientSink1)(Keep.right)
+        .to(Sink.ignore)
         .run()
 
       val client2Messages = client2Source.map { input => TextMessage(input) }
@@ -59,15 +50,15 @@ class ApiIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with Messe
 
       Thread.sleep(5000)
 
-      clientQueue1.offer(InputMessageDto("1", "bar", "hi"))
-      clientQueue1.offer(InputMessageDto("2", "bar", "hey"))
-      clientQueue1.offer(InputMessageDto("3", "bar", "yo"))
+      client1Messages.offer(InputMessageDto("1", "bar", "hi"))
+      client1Messages.offer(InputMessageDto("2", "bar", "hey"))
+      client1Messages.offer(InputMessageDto("3", "bar", "yo"))
 
       Thread.sleep(1000)
 
       Future.sequence((0 to 3).map { i => client2Messages.pull().recover { case _ => None } })
     }.map { it =>
-      assert(it.length == 3)
+      assert(it.length == 4)
     }
   }
 

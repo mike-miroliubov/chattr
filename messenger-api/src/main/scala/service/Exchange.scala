@@ -1,15 +1,14 @@
 package org.chats
 package service
 
+import config.serialization.JsonSerializable
 import service.ClientActor.OutgoingMessage
 
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.actor.typed.{ActorRef, Behavior}
-import org.apache.pekko.cluster.sharding.typed.ShardingEnvelope
-import org.apache.pekko.cluster.sharding.typed.scaladsl.{Entity, EntityTypeKey}
+import org.apache.pekko.cluster.sharding.typed.scaladsl.EntityTypeKey
 import org.apache.pekko.persistence.typed.PersistenceId
 import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
-import org.chats.config.serialization.JsonSerializable
 
 
 /**
@@ -20,10 +19,6 @@ import org.chats.config.serialization.JsonSerializable
  */
 object Exchange {
   val typeKey: EntityTypeKey[OutgoingMessage | Exchange.Command] = EntityTypeKey("Exchange")
-
-  // this enables sharding of Exchanges
-  val shardRegion: ActorRef[ShardingEnvelope[OutgoingMessage | Exchange.Command]] =
-    sharding.init(Entity(typeKey)(createBehavior = entityContext => Exchange(entityContext.entityId, PersistenceId(entityContext.entityTypeKey.name, entityContext.entityId))))
 
   sealed trait Command extends JsonSerializable
   final case class Connect(connection: ActorRef[OutgoingMessage]) extends Command
