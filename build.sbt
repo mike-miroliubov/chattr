@@ -25,7 +25,8 @@ val commonDependencies = Seq(
   "org.apache.pekko" %% "pekko-stream-typed" % pekkoVersion,
 
   // test dependencies
-  "org.scalatest" %% "scalatest" % "3.2.17" % Test
+  "org.scalatest" %% "scalatest" % "3.2.17" % Test,
+  "org.apache.pekko" %% "pekko-stream-testkit" % pekkoVersion % Test
 )
 
 lazy val messenger = project
