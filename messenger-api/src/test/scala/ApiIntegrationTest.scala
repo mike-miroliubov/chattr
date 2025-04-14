@@ -8,6 +8,7 @@ import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.model.ws.{TextMessage, WebSocketRequest}
 import org.apache.pekko.stream.scaladsl.{Flow, Keep, Sink, Source}
+import org.chats.config.AppConfig
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AsyncFlatSpec
 import spray.json.*
@@ -15,7 +16,7 @@ import spray.json.*
 import scala.concurrent.Future
 
 class ApiIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with MessengerJsonProtocol {
-  private val config = IntegrationTestConfig()
+  private val config = AppConfig("application-test.conf")
   private val server = Http()(using config.system).newServerAt("localhost", 0)
   private val binding = server.bind(Api(using config.system, config.system.executionContext).handleWsRequest)
 
@@ -37,18 +38,14 @@ class ApiIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with Messe
         val (client1In, client1Out) = clientSource1
           .map { input => TextMessage(input.toJson.toString) }
           .viaMat(clientFlow1)(Keep.left)
-          .map {
-            _.asTextMessage.getStrictText
-          }
+          .map { _.asTextMessage.getStrictText }
           .toMat(clientSink1)(Keep.both)
           .run()
 
         // Client 2 connects
         val client2Out = client2Source.map { input => TextMessage(input) }
           .via(clientFlow2)
-          .map {
-            _.asTextMessage.getStrictText
-          }
+          .map { _.asTextMessage.getStrictText }
           .toMat(clientSink2)(Keep.right)
           .run()
 
