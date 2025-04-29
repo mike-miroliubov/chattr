@@ -42,6 +42,9 @@ lazy val messenger = project
       "org.apache.pekko" %% "pekko-http-testkit" % pekkoHttpVersion,
       "org.apache.pekko" %% "pekko-stream-testkit" % pekkoVersion,
       "org.apache.pekko" %% "pekko-actor-testkit-typed" % pekkoVersion,
+
+      "org.apache.pekko" %% "pekko-multi-node-testkit" % pekkoVersion % Test
+
     ),
     javacOptions += "-parameters",
   )
