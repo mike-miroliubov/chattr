@@ -13,7 +13,8 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AsyncFlatSpec
 import spray.json.*
 
-import scala.concurrent.Future
+import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.duration.*
 
 class ApiIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with MessengerJsonProtocol {
   private val config = AppConfig("application-test.conf")
@@ -73,6 +74,10 @@ class ApiIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with Messe
   }
 
   override protected def afterAll(): Unit = {
-    binding.flatMap(_.unbind())
+    clientSystem.terminate()
+    Await.ready(clientSystem.whenTerminated.flatMap(_ => {
+      config.system.terminate()
+      config.system.whenTerminated
+    })(ExecutionContext.global), 5.seconds)
   }
 }

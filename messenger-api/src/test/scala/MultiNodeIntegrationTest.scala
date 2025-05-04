@@ -20,7 +20,7 @@ import java.net.ServerSocket
 import java.util.UUID
 import scala.collection.immutable.Seq
 import scala.concurrent.duration.*
-import scala.concurrent.{Await, ExecutionContextExecutor}
+import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor, Future}
 import scala.util.Using
 
 class MultiNodeIntegrationTest extends AnyFlatSpec with BeforeAndAfterAll with MessengerJsonProtocol {
@@ -60,10 +60,11 @@ class MultiNodeIntegrationTest extends AnyFlatSpec with BeforeAndAfterAll with M
       .run()
 
     // Client 2 connects
-    val client2Out = client2Source.map { input => TextMessage(input) }
-      .via(clientFlow2)
+    val (client2In, client2Out) = client2Source
+      .map { input => TextMessage(input) }
+      .viaMat(clientFlow2)(Keep.left)
       .map { _.asTextMessage.getStrictText }
-      .toMat(clientSink2)(Keep.right)
+      .toMat(clientSink2)(Keep.both)
       .run()
 
     // when
@@ -83,6 +84,9 @@ class MultiNodeIntegrationTest extends AnyFlatSpec with BeforeAndAfterAll with M
       """{"from":"foo","id":"2","text":"hey"}""",
       """{"from":"foo","id":"3","text":"yo"}"""
     ))
+
+    client1In.complete()
+    client2In.complete()
   }
 
   "Clients" should "create group and message in a group" in {
@@ -109,27 +113,33 @@ class MultiNodeIntegrationTest extends AnyFlatSpec with BeforeAndAfterAll with M
     def publishMessage(i: InputMessageDto) = TextMessage(i.toJson.toString)
 
     // connect 3 clients
-    val (client1In, client1Out) = clientSource1
+    val ((client1In, client1Connected), client1Out) = clientSource1
       .map(publishMessage)
-      .viaMat(clientFlow1)(Keep.left)
+      .viaMat(clientFlow1)(Keep.both)
       .toMat(clientSink1)(Keep.both).run()
 
-    val (client2In, client2Out) = clientSource2
+    val ((client2In, client2Connected), client2Out) = clientSource2
       .map(publishMessage)
-      .viaMat(clientFlow2)(Keep.left)
+      .viaMat(clientFlow2)(Keep.both)
       .toMat(clientSink2)(Keep.both).run()
 
-    val (client3In, client3Out) = clientSource3
+    val ((client3In, client3Connected), client3Out) = clientSource3
       .map(publishMessage)
-      .viaMat(clientFlow3)(Keep.left)
+      .viaMat(clientFlow3)(Keep.both)
       .toMat(clientSink3)(Keep.both).run()
+
+    // wait until all clients connect
+    Await.ready(
+      Future.sequence(Seq(client1Connected, client2Connected, client3Connected))(executor = ExecutionContext.global),
+      5.seconds
+    )
 
     // when
     for {
       (client, clientId) <- Seq(client1In, client2In, client3In).zipWithIndex
       (message, msgId) <- Seq("hey!", "ho!", "lets go!").zipWithIndex
     } yield {
-      client.offer(InputMessageDto(s"${clientId+1}-${msgId+1}", s"g#$groupName", message))
+      client.offer(InputMessageDto(s"${clientId + 1}-${msgId + 1}", s"g#$groupName", message))
     }
 
     // then
@@ -162,11 +172,20 @@ class MultiNodeIntegrationTest extends AnyFlatSpec with BeforeAndAfterAll with M
       """{"from":"user2","id":"2-2","text":"ho!"}""",
       """{"from":"user2","id":"2-3","text":"lets go!"}"""
     ))
+
+    client1In.complete()
+    client2In.complete()
+    client3In.complete()
   }
 
   override protected def afterAll(): Unit = {
-    binding1.unbind()
-    binding2.unbind()
+    config2.system.log.info("Teardown started")
+    config2.system.terminate() // first terminate the secondary node
+    Await.ready(config2.system.whenTerminated.flatMap(r => {
+      config1.system.log.info("Secondary node downed")
+      config1.system.terminate()
+      config1.system.whenTerminated
+    })(ExecutionContext.global), 10.seconds)
   }
 
   class NodeConfig(clusterPort: Int) {
