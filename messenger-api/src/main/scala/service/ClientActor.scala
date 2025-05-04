@@ -7,6 +7,7 @@ import org.apache.pekko.actor.typed.scaladsl.AskPattern.*
 import org.apache.pekko.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
 import org.apache.pekko.actor.typed.{ActorRef, Behavior, PostStop, Signal}
 import org.apache.pekko.cluster.sharding.typed.ShardingEnvelope
+import org.chats.config.{ExchangeShardRegion, GroupShardRegion}
 import org.chats.config.serialization.JsonSerializable
 
 /**
@@ -15,13 +16,13 @@ import org.chats.config.serialization.JsonSerializable
  */
 class ClientActor(context: ActorContext[ClientActor.Command],
                   userId: String,
-                  outputActor: ActorRef[OutgoingMessage | ServiceCommand]
-                 ) extends AbstractBehavior[ClientActor.Command](context) {
+                  outputActor: ActorRef[OutgoingMessage | ServiceCommand])
+                 (using exchangeShardRegion: ExchangeShardRegion, groupShardRegion: GroupShardRegion) extends AbstractBehavior[ClientActor.Command](context) {
   context.log.info("User {} joined", userId)
 
   // Once the client is instantiated, we connect to an Exchange by sending a message to a ShardRegion.
   // This will either connect to an existing exchange or create a new one.
-  Exchange.shardRegion ! ShardingEnvelope(userId, Exchange.Connect(context.self))
+  exchangeShardRegion ! ShardingEnvelope(userId, Exchange.Connect(context.self))
 
   override def onMessage(msg: ClientActor.Command): Behavior[ClientActor.Command] = msg match {
     case in: IncomingMessage =>
@@ -29,8 +30,8 @@ class ClientActor(context: ActorContext[ClientActor.Command],
       // Because we don't know where the recepient client actor lives we instead send it to an exchange of that user.
       // This will create an empty exchange if that user is not online.
       in.to match {
-        case s"g#${_}" => GroupExchange.shardRegion ! ShardingEnvelope(in.to, OutgoingMessage(in.messageId, in.text, userId))
-        case _ => Exchange.shardRegion ! ShardingEnvelope(in.to, OutgoingMessage(in.messageId, in.text, userId))
+        case s"g#${_}" => groupShardRegion ! ShardingEnvelope(in.to, OutgoingMessage(in.messageId, in.text, userId))
+        case _ => exchangeShardRegion ! ShardingEnvelope(in.to, OutgoingMessage(in.messageId, in.text, userId))
       }
 
       this
@@ -43,7 +44,7 @@ class ClientActor(context: ActorContext[ClientActor.Command],
     case ConnectionClosed =>
       context.log.info("Client {} disconnected", userId)
       // disconnect from exchange so that we don't have dangling sessions
-      Exchange.shardRegion ! ShardingEnvelope(userId, Exchange.Disconnect(context.self))
+      exchangeShardRegion ! ShardingEnvelope(userId, Exchange.Disconnect(context.self))
       outputActor ! ConnectionClosed
       Behaviors.stopped
   }
