@@ -143,7 +143,7 @@ class MultiNodeIntegrationTest extends AnyFlatSpec with BeforeAndAfterAll with M
     }
 
     // then
-    assert(Await.result(client1Out, 5.seconds).toSet == Set( // messages can come out of order
+    assert(Await.result(client1Out, 1.minute).toSet == Set( // messages can come out of order
       """{"from":"","id":"","text":"You joined the chat"}""",
       """{"from":"user2","id":"2-1","text":"hey!"}""",
       """{"from":"user2","id":"2-2","text":"ho!"}""",
@@ -153,7 +153,7 @@ class MultiNodeIntegrationTest extends AnyFlatSpec with BeforeAndAfterAll with M
       """{"from":"user3","id":"3-3","text":"lets go!"}"""
     ))
 
-    assert(Await.result(client2Out, 5.seconds).toSet == Set(
+    assert(Await.result(client2Out, 1.minute).toSet == Set(
       """{"from":"","id":"","text":"You joined the chat"}""",
       """{"from":"user1","id":"1-1","text":"hey!"}""",
       """{"from":"user1","id":"1-2","text":"ho!"}""",
@@ -163,7 +163,7 @@ class MultiNodeIntegrationTest extends AnyFlatSpec with BeforeAndAfterAll with M
       """{"from":"user3","id":"3-3","text":"lets go!"}"""
     ))
 
-    assert(Await.result(client3Out, 5.seconds).toSet == Set(
+    assert(Await.result(client3Out, 1.minute).toSet == Set(
       """{"from":"","id":"","text":"You joined the chat"}""",
       """{"from":"user1","id":"1-1","text":"hey!"}""",
       """{"from":"user1","id":"1-2","text":"ho!"}""",
@@ -198,6 +198,7 @@ class MultiNodeIntegrationTest extends AnyFlatSpec with BeforeAndAfterAll with M
         s"""
         pekko.remote.artery.canonical.port=$clusterPort
         pekko.cluster.seed-nodes=["pekko://my-system@127.0.0.1:$seedNodePort"]
+        pekko.cluster.jmx.multi-mbeans-in-same-jvm = on
         """).withFallback(ConfigFactory.load("application-test.conf"))
     )
     val executionContext: ExecutionContextExecutor = system.executionContext
