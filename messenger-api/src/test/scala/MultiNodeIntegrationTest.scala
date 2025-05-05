@@ -96,15 +96,15 @@ class MultiNodeIntegrationTest extends AnyFlatSpec with BeforeAndAfterAll with M
 
     val clientSource1 = Source.queue[InputMessageDto](3)
     val clientFlow1 = Http().webSocketClientFlow(WebSocketRequest(s"ws:/${binding1.localAddress}/api/connect?userName=user1"))
-    val clientSink1 = receiveMessage.take(7).toMat(Sink.seq[String])(Keep.right)
+    val clientSink1 = receiveMessage.takeWithin(10.seconds).toMat(Sink.seq[String])(Keep.right)
 
     val clientSource2 = Source.queue[InputMessageDto](3)
     val clientFlow2 = Http().webSocketClientFlow(WebSocketRequest(s"ws:/${binding2.localAddress}/api/connect?userName=user2"))
-    val clientSink2 = receiveMessage.take(7).toMat(Sink.seq[String])(Keep.right)
+    val clientSink2 = receiveMessage.takeWithin(10.seconds).toMat(Sink.seq[String])(Keep.right)
 
     val clientSource3 = Source.queue[InputMessageDto](3)
     val clientFlow3 = Http().webSocketClientFlow(WebSocketRequest(s"ws:/${binding2.localAddress}/api/connect?userName=user3"))
-    val clientSink3 = receiveMessage.take(7).toMat(Sink.seq[String])(Keep.right)
+    val clientSink3 = receiveMessage.takeWithin(10.seconds).toMat(Sink.seq[String])(Keep.right)
 
     config1.groupSharding ! ShardingEnvelope(s"g#$groupName", MakeGroup("user1", Set()))
     config1.groupSharding ! ShardingEnvelope(s"g#$groupName", AddMember("user2"))
@@ -143,7 +143,7 @@ class MultiNodeIntegrationTest extends AnyFlatSpec with BeforeAndAfterAll with M
     }
 
     // then
-    assert(Await.result(client1Out, 1.minute).toSet == Set( // messages can come out of order
+    assert(Await.result(client1Out, 10.seconds).toSet == Set( // messages can come out of order
       """{"from":"","id":"","text":"You joined the chat"}""",
       """{"from":"user2","id":"2-1","text":"hey!"}""",
       """{"from":"user2","id":"2-2","text":"ho!"}""",
@@ -153,7 +153,7 @@ class MultiNodeIntegrationTest extends AnyFlatSpec with BeforeAndAfterAll with M
       """{"from":"user3","id":"3-3","text":"lets go!"}"""
     ))
 
-    assert(Await.result(client2Out, 1.minute).toSet == Set(
+    assert(Await.result(client2Out, 10.seconds).toSet == Set(
       """{"from":"","id":"","text":"You joined the chat"}""",
       """{"from":"user1","id":"1-1","text":"hey!"}""",
       """{"from":"user1","id":"1-2","text":"ho!"}""",
@@ -163,7 +163,7 @@ class MultiNodeIntegrationTest extends AnyFlatSpec with BeforeAndAfterAll with M
       """{"from":"user3","id":"3-3","text":"lets go!"}"""
     ))
 
-    assert(Await.result(client3Out, 1.minute).toSet == Set(
+    assert(Await.result(client3Out, 10.seconds).toSet == Set(
       """{"from":"","id":"","text":"You joined the chat"}""",
       """{"from":"user1","id":"1-1","text":"hey!"}""",
       """{"from":"user1","id":"1-2","text":"ho!"}""",
