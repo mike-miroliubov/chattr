@@ -65,6 +65,8 @@ lazy val cliClient = project
       libraryDependencies ++= commonDependencies,
     )
 
+Test / parallelExecution := false
+
 // Customize the merge strategy to discard duplicated files and merge Pekko conf files
 ThisBuild / assemblyMergeStrategy := {
   // Akka/Pekko wants us to merge reference.conf and version.conf files:

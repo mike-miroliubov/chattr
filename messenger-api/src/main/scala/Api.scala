@@ -18,7 +18,6 @@ import org.apache.pekko.util.Timeout
 import spray.json.*
 
 import java.util.concurrent.TimeUnit
-import scala.concurrent.duration.Duration
 import scala.concurrent.{ExecutionContext, Future, Promise}
 
 class Api(using system: ActorSystem[ClientManagerActor.Command], executionContext: ExecutionContext) extends Directives with MessengerJsonProtocol {
@@ -76,9 +75,9 @@ class Api(using system: ActorSystem[ClientManagerActor.Command], executionContex
             b.dataStream.runWith(Sink.ignore)
             None
         }
-        .mapAsync(1)(m => m.toStrict(Duration(3, TimeUnit.SECONDS)))
+        .flatMapConcat(m => m.textStream)
         .map { m =>
-          val dto = m.text.parseJson.convertTo[InputMessageDto]
+          val dto = m.parseJson.convertTo[InputMessageDto]
           IncomingMessage(dto.id, dto.text, dto.to, "")
         } // transform WS message to an IncomingMessage DTO
         .to(ActorSink.actorRef( // process messages with a ClientActor by dumping to an ActorSink

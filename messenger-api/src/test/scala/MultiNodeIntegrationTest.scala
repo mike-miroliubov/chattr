@@ -13,7 +13,7 @@ import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.model.ws.{Message, TextMessage, WebSocketRequest}
 import org.apache.pekko.stream.scaladsl.{Flow, Keep, Sink, Source}
 import org.scalatest.BeforeAndAfterAll
-import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.flatspec.{AnyFlatSpec, AsyncFlatSpec}
 import spray.json.*
 
 import java.net.ServerSocket
@@ -23,7 +23,7 @@ import scala.concurrent.duration.*
 import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor, Future}
 import scala.util.Using
 
-class MultiNodeIntegrationTest extends AnyFlatSpec with BeforeAndAfterAll with MessengerJsonProtocol {
+class MultiNodeIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with MessengerJsonProtocol {
   private val seedNodePort = findFreePort()
   private val config1 = NodeConfig(seedNodePort)
   private val server = Http()(using config1.system).newServerAt("localhost", 0)
@@ -87,6 +87,8 @@ class MultiNodeIntegrationTest extends AnyFlatSpec with BeforeAndAfterAll with M
 
     client1In.complete()
     client2In.complete()
+
+    succeed
   }
 
   "Clients" should "create group and message in a group" in {
@@ -129,53 +131,60 @@ class MultiNodeIntegrationTest extends AnyFlatSpec with BeforeAndAfterAll with M
       .toMat(clientSink3)(Keep.both).run()
 
     // wait until all clients connect
-    Await.ready(
-      Future.sequence(Seq(client1Connected, client2Connected, client3Connected))(executor = ExecutionContext.global),
-      5.seconds
-    )
+    Future.sequence(Seq(client1Connected, client2Connected, client3Connected)).flatMap { _ =>
+      // when
+      for {
+        (client, clientId) <- Seq(client1In, client2In, client3In).zipWithIndex
+        (message, msgId) <- Seq("hey!", "ho!", "lets go!").zipWithIndex
+      } yield {
+        client.offer(InputMessageDto(s"${clientId + 1}-${msgId + 1}", s"g#$groupName", message))
+      }
 
-    // when
-    for {
-      (client, clientId) <- Seq(client1In, client2In, client3In).zipWithIndex
-      (message, msgId) <- Seq("hey!", "ho!", "lets go!").zipWithIndex
-    } yield {
-      client.offer(InputMessageDto(s"${clientId + 1}-${msgId + 1}", s"g#$groupName", message))
+      // then
+      val assert1 = client1Out.flatMap { s =>
+        assert(s.toSet == Set( // messages can come out of order
+          """{"from":"","id":"","text":"You joined the chat"}""",
+          """{"from":"user2","id":"2-1","text":"hey!"}""",
+          """{"from":"user2","id":"2-2","text":"ho!"}""",
+          """{"from":"user2","id":"2-3","text":"lets go!"}""",
+          """{"from":"user3","id":"3-1","text":"hey!"}""",
+          """{"from":"user3","id":"3-2","text":"ho!"}""",
+          """{"from":"user3","id":"3-3","text":"lets go!"}"""
+        ))
+      }
+
+      val assert2 = client2Out.flatMap { s =>
+        assert(s.toSet == Set(
+          """{"from":"","id":"","text":"You joined the chat"}""",
+          """{"from":"user1","id":"1-1","text":"hey!"}""",
+          """{"from":"user1","id":"1-2","text":"ho!"}""",
+          """{"from":"user1","id":"1-3","text":"lets go!"}""",
+          """{"from":"user3","id":"3-1","text":"hey!"}""",
+          """{"from":"user3","id":"3-2","text":"ho!"}""",
+          """{"from":"user3","id":"3-3","text":"lets go!"}"""
+        ))
+      }
+
+      val assert3 = client3Out.flatMap { s =>
+        assert(s.toSet == Set(
+          """{"from":"","id":"","text":"You joined the chat"}""",
+          """{"from":"user1","id":"1-1","text":"hey!"}""",
+          """{"from":"user1","id":"1-2","text":"ho!"}""",
+          """{"from":"user1","id":"1-3","text":"lets go!"}""",
+          """{"from":"user2","id":"2-1","text":"hey!"}""",
+          """{"from":"user2","id":"2-2","text":"ho!"}""",
+          """{"from":"user2","id":"2-3","text":"lets go!"}"""
+        ))
+      }
+
+      Future.sequence(Seq(assert1, assert2, assert3))
+    }.flatMap { _ =>
+      client1In.complete()
+      client2In.complete()
+      client3In.complete()
+
+      succeed
     }
-
-    // then
-    assert(Await.result(client1Out, 5.seconds).toSet == Set( // messages can come out of order
-      """{"from":"","id":"","text":"You joined the chat"}""",
-      """{"from":"user2","id":"2-1","text":"hey!"}""",
-      """{"from":"user2","id":"2-2","text":"ho!"}""",
-      """{"from":"user2","id":"2-3","text":"lets go!"}""",
-      """{"from":"user3","id":"3-1","text":"hey!"}""",
-      """{"from":"user3","id":"3-2","text":"ho!"}""",
-      """{"from":"user3","id":"3-3","text":"lets go!"}"""
-    ))
-
-    assert(Await.result(client2Out, 5.seconds).toSet == Set(
-      """{"from":"","id":"","text":"You joined the chat"}""",
-      """{"from":"user1","id":"1-1","text":"hey!"}""",
-      """{"from":"user1","id":"1-2","text":"ho!"}""",
-      """{"from":"user1","id":"1-3","text":"lets go!"}""",
-      """{"from":"user3","id":"3-1","text":"hey!"}""",
-      """{"from":"user3","id":"3-2","text":"ho!"}""",
-      """{"from":"user3","id":"3-3","text":"lets go!"}"""
-    ))
-
-    assert(Await.result(client3Out, 5.seconds).toSet == Set(
-      """{"from":"","id":"","text":"You joined the chat"}""",
-      """{"from":"user1","id":"1-1","text":"hey!"}""",
-      """{"from":"user1","id":"1-2","text":"ho!"}""",
-      """{"from":"user1","id":"1-3","text":"lets go!"}""",
-      """{"from":"user2","id":"2-1","text":"hey!"}""",
-      """{"from":"user2","id":"2-2","text":"ho!"}""",
-      """{"from":"user2","id":"2-3","text":"lets go!"}"""
-    ))
-
-    client1In.complete()
-    client2In.complete()
-    client3In.complete()
   }
 
   override protected def afterAll(): Unit = {
@@ -198,6 +207,7 @@ class MultiNodeIntegrationTest extends AnyFlatSpec with BeforeAndAfterAll with M
         s"""
         pekko.remote.artery.canonical.port=$clusterPort
         pekko.cluster.seed-nodes=["pekko://my-system@127.0.0.1:$seedNodePort"]
+        pekko.cluster.jmx.multi-mbeans-in-same-jvm = on
         """).withFallback(ConfigFactory.load("application-test.conf"))
     )
     val executionContext: ExecutionContextExecutor = system.executionContext
