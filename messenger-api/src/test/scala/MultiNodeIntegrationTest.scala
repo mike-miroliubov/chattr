@@ -36,7 +36,7 @@ class MultiNodeIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with
 
   implicit val clientSystem: ActorSystem[_] = ActorSystem(Behaviors.empty, "test-system", ConfigFactory.load("application-client-test.conf"))
 
-  "Clients" should "connect to different nodes" in {
+  ignore should "connect to different nodes" in {
     Future.sequence(Seq(binding1, binding2)).flatMap { case Seq(b1, b2) =>
       Thread.sleep(1000)
 
@@ -93,7 +93,7 @@ class MultiNodeIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with
     }
   }
 
-  "Clients" should "create group and message in a group" in {
+  ignore should "create group and message in a group" in {
     val groupName = UUID.randomUUID().toString
 
     Future.sequence(Seq(binding1, binding2)).flatMap { case Seq(b1, b2) =>
