@@ -36,7 +36,7 @@ class MultiNodeIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with
 
   implicit val clientSystem: ActorSystem[_] = ActorSystem(Behaviors.empty, "test-system", ConfigFactory.load("application-client-test.conf"))
 
-  ignore should "connect to different nodes" in {
+  "Clients" should "connect to different nodes" in {
     Future.sequence(Seq(binding1, binding2)).flatMap { case Seq(b1, b2) =>
       Thread.sleep(1000)
 
