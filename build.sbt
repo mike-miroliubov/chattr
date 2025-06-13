@@ -62,7 +62,9 @@ lazy val cliClient = project
     .settings(
       name := "cli-client",
       idePackagePrefix := Some("org.chats"),
-      libraryDependencies ++= commonDependencies,
+      libraryDependencies ++= commonDependencies ++ Seq(
+        "com.monovore" %% "decline" % "2.5.0"
+      ),
     )
 
 Test / parallelExecution := false

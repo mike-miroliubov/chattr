@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.*
 import scala.util.{Failure, Success}
 
-class MessengerClient(userName: String) {
+class MessengerClient(userName: String, val host: String, val port: Int) {
   // Broadcast hub will dynamically connect multiple subscriber sinks as needed
   private val hub = BroadcastHub.sink[InputMessageDto]
   private val (outputActor: ActorRef[OutputMessageDto | ServiceMessage], input, closed) = connect(userName)
@@ -87,7 +87,7 @@ class MessengerClient(userName: String) {
 
     val webSocketFlow = RestartFlow.withBackoff(restartSettings) { () =>
       val (upgradeResponse, originalFlow) = Http()
-        .webSocketClientFlow(WebSocketRequest(s"ws://localhost:8082/api/connect?userName=$userName"))
+        .webSocketClientFlow(WebSocketRequest(s"ws://${host}:${port}/api/connect?userName=$userName"))
         .preMaterialize()
 
       // Because connection might be reattempted many times, we need a stream rather than a Future.
