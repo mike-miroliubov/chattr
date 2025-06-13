@@ -23,7 +23,7 @@ class ApiIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with Messe
 
   implicit val clientSystem: ActorSystem[_] = ActorSystem(Behaviors.empty, "test-system", ConfigFactory.load("application-client-test.conf"))
 
-  ignore should "send and receive messages" in {
+  "Clients" should "send and receive messages" in {
     binding
       .flatMap { b =>
         // given

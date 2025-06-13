@@ -12,7 +12,7 @@ import org.apache.pekko.cluster.sharding.typed.ShardingEnvelope
 import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.model.ws.{Message, TextMessage, WebSocketRequest}
 import org.apache.pekko.stream.scaladsl.{Flow, Keep, Sink, Source}
-import org.scalatest.BeforeAndAfterAll
+import org.scalatest.{BeforeAndAfterAll, Tag}
 import org.scalatest.flatspec.AsyncFlatSpec
 import spray.json.*
 
@@ -22,6 +22,8 @@ import scala.collection.immutable.Seq
 import scala.concurrent.duration.*
 import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor, Future}
 import scala.util.Using
+
+object MultiNode extends Tag("org,chats.tags.MultiNode")
 
 class MultiNodeIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with MessengerJsonProtocol {
   private val seedNodePort = findFreePort()
@@ -36,7 +38,9 @@ class MultiNodeIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with
 
   implicit val clientSystem: ActorSystem[_] = ActorSystem(Behaviors.empty, "test-system", ConfigFactory.load("application-client-test.conf"))
 
-  "Clients" should "connect to different nodes" in {
+  behavior of "Clients on different nodes"
+
+  they should "connect and receive messages" taggedAs MultiNode in {
     Future.sequence(Seq(binding1, binding2)).flatMap { case Seq(b1, b2) =>
       Thread.sleep(1000)
 
@@ -93,7 +97,7 @@ class MultiNodeIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with
     }
   }
 
-  ignore should "create group and message in a group" in {
+  they should "create group and message in a group" taggedAs MultiNode in {
     val groupName = UUID.randomUUID().toString
 
     Future.sequence(Seq(binding1, binding2)).flatMap { case Seq(b1, b2) =>
