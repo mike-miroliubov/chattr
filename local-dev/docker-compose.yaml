@@ -1,0 +1,29 @@
+version: '3.8'
+
+networks:
+  chattr-local:
+
+services:
+  cassandra:
+    image: bitnami/cassandra:5.0.4
+    container_name: cassandra
+    ports:
+      - "9042:9042"  # CQL port
+      - "7000:7000"  # inter-node communication
+      - "7001:7001"  # TLS inter-node communication
+      - "7199:7199"  # JMX monitoring
+      - "9160:9160"  # Thrift service (deprecated but sometimes used)
+    environment:
+      - CASSANDRA_CLUSTER_NAME=ChattrCluster
+      - CASSANDRA_DC=dc1
+      - CASSANDRA_RACK=rack1
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+      - MAX_HEAP_SIZE=512M
+      - HEAP_NEWSIZE=100M
+      - CASSANDRA_DELAY_START_TIME=1
+      # username is cassandra, password is cassandra
+    volumes:
+      - ./data/cassandra:/bitnami
+      - ./init-db:/docker-entrypoint-initdb.d
+    networks:
+      - chattr-local

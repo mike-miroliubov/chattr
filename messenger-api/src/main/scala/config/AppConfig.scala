@@ -34,8 +34,7 @@ class AppConfig(resourceName: String = "application.conf") {
     ConfigFactory.parseString(
       s"""
       pekko.remote.artery.canonical.port=${sys.env.getOrElse("CLUSTER_PORT", "7354")}
-      pekko.persistence.journal.proxy.start-target-journal = ${if sys.env.isDefinedAt("IS_MAIN_INSTANCE") then "on" else "off"}
-      pekko.persistence.snapshot-store.proxy.start-target-snapshot-store = ${if sys.env.isDefinedAt("IS_MAIN_INSTANCE") then "on" else "off"}
       """).withFallback(ConfigFactory.load(resourceName))
+
   }
 }

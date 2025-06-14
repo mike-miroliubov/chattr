@@ -27,11 +27,11 @@ object Main {
     .withDefault("localhost")
     .validate("Host must not be empty") { _.nonEmpty }
   private val options = (host, port).mapN(ChatConfig.apply)
-  private val chatCommand = Command(name = "chat", header = "A command line chat client", helpFlag = true) { options }
+  private val mainCommand = Command(name = "chat", header = "A command line chat client", helpFlag = true) { options }
 
 
   def main(args: Array[String]): Unit = {
-    chatCommand.parse(args) match {
+    mainCommand.parse(args) match {
       case Left(help) if help.errors.isEmpty =>
         println(help)
         sys.exit(0)

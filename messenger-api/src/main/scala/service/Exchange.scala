@@ -8,7 +8,7 @@ import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.actor.typed.{ActorRef, Behavior}
 import org.apache.pekko.cluster.sharding.typed.scaladsl.EntityTypeKey
 import org.apache.pekko.persistence.typed.PersistenceId
-import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
+import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
 
 
 /**
@@ -21,11 +21,15 @@ object Exchange {
   val typeKey: EntityTypeKey[OutgoingMessage | Exchange.Command] = EntityTypeKey("Exchange")
 
   sealed trait Command extends JsonSerializable
+
   final case class Connect(connection: ActorRef[OutgoingMessage]) extends Command
+
   final case class Disconnect(connection: ActorRef[OutgoingMessage]) extends Command
 
   sealed trait Event extends JsonSerializable
+
   final case class Connected(connection: ActorRef[OutgoingMessage]) extends Event
+
   final case class Disconnected(connection: ActorRef[OutgoingMessage]) extends Event
 
   final case class State(connectedActors: Set[ActorRef[OutgoingMessage]]) extends JsonSerializable
@@ -35,6 +39,7 @@ object Exchange {
    * because Sharded actors are automatically passivated after 2 min (by default) of inactivity.
    * Persistence assures that when the actor is booted up, it gets back it's state (connected actors).
    */
+  // TODO: on startup go through connected workers, if any, check for liveness
   def apply(userId: String, persistenceId: PersistenceId): Behavior[OutgoingMessage | Exchange.Command] =
     Behaviors.setup { context =>
       EventSourcedBehavior[OutgoingMessage | Exchange.Command, Event, State](
@@ -57,6 +62,10 @@ object Exchange {
             case Connected(connection) => State(state.connectedActors + connection)
             case Disconnected(connection) => State(state.connectedActors.filterNot(_ == connection))
         }
+      )
+      .withRetention(
+        RetentionCriteria.snapshotEvery(numberOfEvents = 2, keepNSnapshots = 1)
+          .withDeleteEventsOnSnapshot
       )
     }
 }
