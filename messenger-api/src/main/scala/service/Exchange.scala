@@ -2,13 +2,17 @@ package org.chats
 package service
 
 import config.serialization.JsonSerializable
-import service.ClientActor.OutgoingMessage
+import service.ClientActor.{OutgoingMessage, OutgoingMessageWithAck}
 
-import org.apache.pekko.actor.typed.scaladsl.Behaviors
+import org.apache.pekko.actor.typed.scaladsl.{ActorContext, Behaviors}
 import org.apache.pekko.actor.typed.{ActorRef, Behavior}
 import org.apache.pekko.cluster.sharding.typed.scaladsl.EntityTypeKey
 import org.apache.pekko.persistence.typed.PersistenceId
 import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
+import org.apache.pekko.util.Timeout
+
+import scala.concurrent.duration.*
+import scala.util.{Failure, Success}
 
 
 /**
@@ -21,42 +25,27 @@ object Exchange {
   val typeKey: EntityTypeKey[OutgoingMessage | Exchange.Command] = EntityTypeKey("Exchange")
 
   sealed trait Command extends JsonSerializable
-
-  final case class Connect(connection: ActorRef[OutgoingMessage]) extends Command
-
-  final case class Disconnect(connection: ActorRef[OutgoingMessage]) extends Command
+  final case class Connect(connection: ActorRef[OutgoingMessage | OutgoingMessageWithAck]) extends Command
+  final case class Disconnect(connection: ActorRef[OutgoingMessage | OutgoingMessageWithAck]) extends Command
+  private final case class Delivered(messageId: String) extends Command
 
   sealed trait Event extends JsonSerializable
+  final case class Connected(connection: ActorRef[OutgoingMessage | OutgoingMessageWithAck]) extends Event
+  final case class Disconnected(connection: ActorRef[OutgoingMessage | OutgoingMessageWithAck]) extends Event
 
-  final case class Connected(connection: ActorRef[OutgoingMessage]) extends Event
-
-  final case class Disconnected(connection: ActorRef[OutgoingMessage]) extends Event
-
-  final case class State(connectedActors: Set[ActorRef[OutgoingMessage]]) extends JsonSerializable
+  final case class State(connectedActors: Set[ActorRef[OutgoingMessage | OutgoingMessageWithAck]]) extends JsonSerializable
 
   /**
    * This actor is implemented as function, rather than as a class. This actor is a persistent one,
    * because Sharded actors are automatically passivated after 2 min (by default) of inactivity.
    * Persistence assures that when the actor is booted up, it gets back it's state (connected actors).
    */
-  // TODO: on startup go through connected workers, if any, check for liveness
   def apply(userId: String, persistenceId: PersistenceId): Behavior[OutgoingMessage | Exchange.Command] =
     Behaviors.setup { context =>
       EventSourcedBehavior[OutgoingMessage | Exchange.Command, Event, State](
         persistenceId = persistenceId,
         emptyState = State(Set.empty),
-        commandHandler = (state, cmd) => {
-          cmd match {
-            case Connect(connection) => Effect.persist(Connected(connection))
-            case Disconnect(connection) => Effect.persist(Disconnected(connection))
-            case message: OutgoingMessage =>
-              context.log.debug(s"Relaying message ${message.text} to ${state.connectedActors}")
-              state.connectedActors.foreach {
-                _ ! message
-              }
-              Effect.none
-          }
-        },
+        commandHandler = commandHandler(context),
         eventHandler = (state, event) => {
           event match
             case Connected(connection) => State(state.connectedActors + connection)
@@ -64,8 +53,40 @@ object Exchange {
         }
       )
       .withRetention(
-        RetentionCriteria.snapshotEvery(numberOfEvents = 2, keepNSnapshots = 1)
+        RetentionCriteria.snapshotEvery(numberOfEvents = 5, keepNSnapshots = 1)
           .withDeleteEventsOnSnapshot
       )
     }
+
+  private def commandHandler(context: ActorContext[OutgoingMessage | Command])
+                            (state: State, cmd: OutgoingMessage | Command): Effect[Event, State] = {
+    cmd match {
+      case Connect(connection) => Effect.persist(Connected(connection))
+      case Disconnect(connection) => Effect.persist(Disconnected(connection))
+      case message: OutgoingMessage =>
+        relayMessage(context, state, message)
+        Effect.none
+      case _: Delivered => Effect.none // TODO: we should reply to the caller here that we delivered
+    }
+  }
+
+  private def relayMessage(context: ActorContext[OutgoingMessage | Command], state: State, message: OutgoingMessage): Unit = {
+    context.log.debug(s"Relaying message ${message.text} to ${state.connectedActors}")
+
+    implicit val timeout: Timeout = 3.seconds
+
+    state.connectedActors.foreach { it =>
+      // Send message to connected client actor, waiting for an ack back.
+      // If ack is not returned in time, initiate a disconnect.
+      // This is done to prevent stale clients that for some reason failed to disconnect gracefully
+      // and remain in the persistent state
+      context.ask(it, ref => OutgoingMessageWithAck(message, ref)) {
+        case Failure(exception) =>
+          // TODO: we actually want to do a few retries here
+          context.log.debug(s"Connected actor $it did not reply, removing it")
+          Disconnect(it)
+        case Success(a) => Delivered(message.messageId) // ack was received, nothing to do here
+      }
+    }
+  }
 }
