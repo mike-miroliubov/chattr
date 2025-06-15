@@ -38,6 +38,10 @@ class ClientActor(context: ActorContext[ClientActor.Command],
     case out: OutgoingMessage =>
       outputActor ! out
       this
+    case OutgoingMessageWithAck(out, replyTo) =>
+      outputActor ! out
+      replyTo ! Ack(out.messageId)
+      this
     case GreetingsMessage =>
       outputActor ! OutgoingMessage("", "You joined the chat", "")
       this
@@ -60,10 +64,11 @@ object ClientActor {
   sealed trait Command extends JsonSerializable
   final case class IncomingMessage(messageId: String, text: String, to: String, from: String) extends Command
   final case class OutgoingMessage(messageId: String, text: String, from: String) extends Command
+  // TODO: refactor, remove OutgoingMessage in favor of this OutgoingMessageWithAck
+  final case class OutgoingMessageWithAck(message: OutgoingMessage, replyTo: ActorRef[Ack]) extends Command
   case object GreetingsMessage extends Command
 
   sealed trait ServiceCommand extends Command
   case object ConnectionClosed extends ServiceCommand
-  // TODO: maybe add replyTo: ActorRef[Ack]
-  // final case class Ack(messageId: String) extends ServiceCommand
+  final case class Ack(messageId: String) extends ServiceCommand
 }
