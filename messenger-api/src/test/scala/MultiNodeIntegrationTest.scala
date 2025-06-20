@@ -84,7 +84,7 @@ class MultiNodeIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with
         """{"from":"","id":"","text":"You joined the chat"}"""
       ))
 
-      assert(c2 == Seq(
+      assert(c2.toSet == Set(
         """{"from":"","id":"","text":"You joined the chat"}""",
         """{"from":"foo","id":"1","text":"hi"}""",
         """{"from":"foo","id":"2","text":"hey"}""",

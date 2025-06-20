@@ -2,7 +2,7 @@ package org.chats
 package config
 
 import service.ClientActor.OutgoingMessage
-import service.{Exchange, GroupExchange}
+import service.{DeliveryActor, Exchange, GroupExchange}
 
 import org.apache.pekko.actor.typed.{ActorRef, ActorSystem}
 import org.apache.pekko.cluster.sharding.typed.ShardingEnvelope
