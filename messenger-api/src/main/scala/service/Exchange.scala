@@ -101,9 +101,9 @@ object Exchange {
       // and remain in the persistent state.
       // We use a new actor to perform message delivery so that it can encapsulate the retries.
       // TODO: do no spawn a new actor every time, reuse 1!
-      val deliveryActor = context.spawn(DeliveryActor(it), s"delivery-${UUID.randomUUID()}")
+      val deliveryActor = context.spawn(DeliveryActor(it, 3), s"delivery-${UUID.randomUUID()}")
       given timeout: Timeout = 30.seconds // its a long timeout because we will receive a response anyway
-      context.ask[DeliveryActor.Init, DeliveryActor.Ack | DeliveryActor.Nack](deliveryActor, ref => DeliveryActor.Init(message = message, replyTo = ref)) {
+      context.ask[DeliveryActor.Send, DeliveryActor.Ack | DeliveryActor.Nack](deliveryActor, ref => DeliveryActor.Send(message = message, replyTo = ref)) {
         case Failure(_) => Disconnect(it)
         case Success(DeliveryActor.Ack(messageId, _)) => Delivered(message.messageId) // ack was received, nothing to do here
         case Success(DeliveryActor.Nack(unreachableActor, _)) => Disconnect(unreachableActor)
@@ -116,17 +116,21 @@ object Exchange {
  * Delivery actor ensures delivery, waiting for an Ack. It will also encapsulate retry logic
  */
 object DeliveryActor {
-  def apply(recipient: ActorRef[OutgoingMessage | OutgoingMessageWithAck]): Behavior[Command] = {
+  def apply(recipient: ActorRef[OutgoingMessage | OutgoingMessageWithAck], maxAttempts: Int): Behavior[Command] = {
     Behaviors.receive { (context, message) =>
       message match {
-        case Init(m, replyTo) =>
+        case Send(m, replyTo, attempt) =>
           implicit val timeout: Timeout = 3.seconds
 
+          // maybe simplify with an ask that returns a future
           context.ask(recipient, ref => OutgoingMessageWithAck(m, ref)) {
             case Failure(exception) =>
-              // TODO: we actually want to do a few retries here
-              context.log.debug(s"Connected actor $recipient did not reply, removing it")
-              Nack(recipient, Some(replyTo))
+              if (attempt == maxAttempts) {
+                context.log.debug(s"Connected actor $recipient did not reply after $maxAttempts attempts, removing it")
+                Nack(recipient, Some(replyTo))
+              } else {
+                Retry(m, replyTo, attempt)
+              }
             case Success(a) => Ack(m.messageId, Some(replyTo))
           }
 
@@ -137,14 +141,22 @@ object DeliveryActor {
         case Nack(recipient, Some(replyTo)) =>
           replyTo ! Nack(recipient)
           Behaviors.stopped
+        case Retry(m, replyTo, attempt) =>
+          val waitTime = LazyList.iterate(0.3.seconds.toMillis){ exponentialBackoff(_, 2) }.drop(attempt - 1).head.millis
+          context.log.debug(s"Waiting $waitTime until next attempt #${attempt + 1}")
+          context.scheduleOnce(waitTime, context.self, Send(m, replyTo, attempt + 1))
+          Behaviors.same
       }
     }
   }
 
+  private def exponentialBackoff(sleepMs: Long, multiplier: Long): Long = sleepMs * multiplier
+
   sealed trait Command
-  final case class Init(message: OutgoingMessage, replyTo: ActorRef[Ack | Nack]) extends Command
+  final case class Send(message: OutgoingMessage, replyTo: ActorRef[Ack | Nack], attempt: Int = 1) extends Command
   final case class Nack(recipient: ActorRef[OutgoingMessage | OutgoingMessageWithAck],
                         replyTo: Option[ActorRef[Ack | Nack]] = None) extends Command
   final case class Ack(messageId: String,
                        replyTo: Option[ActorRef[Ack | Nack]] = None) extends Command
+  final case class Retry(message: OutgoingMessage, replyTo: ActorRef[Ack | Nack], attempt: Int = 1) extends Command
 }
