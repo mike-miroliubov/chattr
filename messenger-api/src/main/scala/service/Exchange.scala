@@ -4,14 +4,18 @@ package service
 import config.serialization.JsonSerializable
 import service.ClientActor.{OutgoingMessage, OutgoingMessageWithAck}
 
+import org.apache.pekko
+import org.apache.pekko.actor
 import org.apache.pekko.actor.typed.scaladsl.{ActorContext, Behaviors}
-import org.apache.pekko.actor.typed.{ActorRef, Behavior}
+import org.apache.pekko.actor.typed.{ActorRef, Behavior, Scheduler}
 import org.apache.pekko.cluster.sharding.typed.scaladsl.EntityTypeKey
+import org.apache.pekko.pattern.RetrySupport
 import org.apache.pekko.persistence.typed.PersistenceId
 import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
 import org.apache.pekko.util.Timeout
 
 import java.util.UUID
+import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.*
 import scala.util.{Failure, Success}
 
@@ -34,7 +38,7 @@ object Exchange {
   final case class Connected(connection: ActorRef[OutgoingMessage | OutgoingMessageWithAck]) extends Event
   final case class Disconnected(connection: ActorRef[OutgoingMessage | OutgoingMessageWithAck]) extends Event
 
-  final case class State(connectedActors: Set[ActorRef[OutgoingMessage | OutgoingMessageWithAck]]) extends JsonSerializable
+  final case class State(userId: String, connectedActors: Set[ActorRef[OutgoingMessage | OutgoingMessageWithAck]]) extends JsonSerializable
 
   /**
    * This actor is implemented as function, rather than as a class. This actor is a persistent one,
@@ -45,12 +49,12 @@ object Exchange {
     Behaviors.setup { context =>
       EventSourcedBehavior[OutgoingMessage | Exchange.Command, Event, State](
         persistenceId = persistenceId,
-        emptyState = State(Set.empty),
+        emptyState = State(userId, Set.empty),
         commandHandler = commandHandler(context),
         eventHandler = (state, event) => {
           event match
-            case Connected(connection) => State(state.connectedActors + connection)
-            case Disconnected(connection) => State(state.connectedActors.filterNot(_ == connection))
+            case Connected(connection) => State(userId, state.connectedActors + connection)
+            case Disconnected(connection) => State(userId, state.connectedActors.filterNot(_ == connection))
         }
       )
       .withRetention(
@@ -65,7 +69,8 @@ object Exchange {
       case Connect(connection) => Effect.persist(Connected(connection))
       case Disconnect(connection) => Effect.persist(Disconnected(connection))
       case message: OutgoingMessage =>
-        relayMessage2(context, state, message)
+        //relayMessage2(context, state, message)
+        relayMessage(context, state, message)
         Effect.none
       case _: Delivered => Effect.none // TODO: we should reply to the caller here that we delivered
     }
@@ -74,20 +79,43 @@ object Exchange {
   private def relayMessage(context: ActorContext[OutgoingMessage | Command], state: State, message: OutgoingMessage): Unit = {
     context.log.debug(s"Relaying message ${message.text} to ${state.connectedActors}")
 
-    implicit val timeout: Timeout = 3.seconds
+    // TODO: save message to DB here
+    if (state.connectedActors.isEmpty) {
+      // TODO: send out a push message here
+      context.log.debug(s"User ${state.userId} offline")
+    }
 
-    state.connectedActors.foreach { it =>
+    given ctx: ExecutionContext = context.executionContext
+    given scheduler: actor.Scheduler = context.system.classicSystem.scheduler
+    val asks = state.connectedActors.map { it =>
       // Send message to connected client actor, waiting for an ack back.
       // If ack is not returned in time, initiate a disconnect.
       // This is done to prevent stale clients that for some reason failed to disconnect gracefully
       // and remain in the persistent state
-      context.ask(it, ref => OutgoingMessageWithAck(message, ref)) {
-        case Failure(exception) =>
-          // TODO: we actually want to do a few retries here
-          context.log.debug(s"Connected actor $it did not reply, removing it")
-          Disconnect(it)
-        case Success(a) => Delivered(message.messageId) // ack was received, nothing to do here
+
+      import pekko.actor.typed.scaladsl.AskPattern._
+      val ask = RetrySupport.retry(
+        attempt = () => it.ask(ref => OutgoingMessageWithAck(message, ref))(3.seconds, context.system.scheduler),
+        attempts = 3,
+        minBackoff = 0.3.seconds,
+        maxBackoff = 3.seconds,
+        randomFactor = 0.2
+      )
+
+      ask.onComplete {
+        case Success(_) =>
+        case Failure(_) => context.self ! Disconnect(it)
       }
+
+      ask
+    }
+
+    // if none of the asks successfully completed, send user a push
+    Future.find(asks) { _ => true }.foreach {
+      case Some(_) =>
+      case None =>
+        // TODO: send out a push message here
+        context.log.debug(s"User ${state.userId} offline")
     }
   }
 
