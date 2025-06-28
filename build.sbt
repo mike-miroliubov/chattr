@@ -72,6 +72,14 @@ lazy val cliClient = project
       ),
     )
 
+lazy val cliClient2 = project
+  .in(file("cli-client2"))
+  .settings(
+    name := "cli-client2",
+    idePackagePrefix := Some("org.chats"),
+    libraryDependencies ++= Seq("com.googlecode.lanterna" % "lanterna" % "3.1.3")
+  )
+
 Test / parallelExecution := false
 
 // Customize the merge strategy to discard duplicated files and merge Pekko conf files
