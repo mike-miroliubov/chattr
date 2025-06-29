@@ -68,7 +68,8 @@ lazy val cliClient = project
       name := "cli-client",
       idePackagePrefix := Some("org.chats"),
       libraryDependencies ++= commonDependencies ++ Seq(
-        "com.monovore" %% "decline" % "2.5.0"
+        "com.monovore" %% "decline" % "2.5.0",
+        "com.googlecode.lanterna" % "lanterna" % "3.1.3"
       ),
     )
 

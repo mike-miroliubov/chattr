@@ -4,15 +4,18 @@ package view
 import com.googlecode.lanterna.TerminalSize
 import com.googlecode.lanterna.gui2.*
 import com.googlecode.lanterna.input.{KeyStroke, KeyType}
+import org.chats.dto.InputMessageDto
 
 class ChatView(
   private val userName: String,
-  private val onWindowClosed: () => Unit
 ) extends BaseView {
   private val window = BasicWindow(s"Chat with $userName")
   private val panel = Panel(BorderLayout())
   private val messageArea = TextBox(TerminalSize(40, 10), TextBox.Style.MULTI_LINE).setReadOnly(true)
   private val inputBox = new TextBox(TerminalSize(30, 1))
+
+  var onWindowClosed: () => Unit = () => {}
+  var onMessageSent: String => Unit = _ => {}
 
   inputBox.setInputFilter { (i, key) =>
     key.getKeyType match
@@ -43,9 +46,15 @@ class ChatView(
     gui.addWindowAndWait(window)
   }
 
+  def displayMessage(message: InputMessageDto): Unit = {
+    messageArea.addLine(s"${message.from}: ${message.text}")
+    messageArea.handleKeyStroke(KeyStroke(KeyType.End))
+  }
+
   private def sendMessage(): Unit = {
     val text = inputBox.getText
     if (!text.isBlank) {
+      onMessageSent(text)
       messageArea.addLine(s"You: $text")
       messageArea.handleKeyStroke(KeyStroke(KeyType.End))
       inputBox.setText("")
