@@ -1,6 +1,6 @@
 package org.chats
 
-import view.{ChatListView, ChatView}
+import view.{ChatListView, ChatView, LoginView}
 
 import com.googlecode.lanterna.TextColor
 import com.googlecode.lanterna.graphics.SimpleTheme
@@ -22,13 +22,18 @@ object Main {
         TextColor.ANSI.WHITE, // Foreground
         TextColor.ANSI.BLACK // Background
       ))
-      
+
+      val loginView = LoginView()
       val chatListView = ChatListView()
+      loginView.onLogin = userName => {
+        chatListView.render(gui)
+      }
+
       chatListView.onChatSelect = chat => {
         ChatView(chat, onWindowClosed = () => { chatListView.render(gui) }).render(gui)
       }
 
-      chatListView.render(gui)
+      loginView.render(gui)
     }
   }
 }

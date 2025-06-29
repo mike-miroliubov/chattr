@@ -8,7 +8,7 @@ import com.googlecode.lanterna.input.{KeyStroke, KeyType}
 class ChatView(
   private val userName: String,
   private val onWindowClosed: () => Unit
-) {
+) extends BaseView {
   private val window = BasicWindow(s"Chat with $userName")
   private val panel = Panel(BorderLayout())
   private val messageArea = TextBox(TerminalSize(40, 10), TextBox.Style.MULTI_LINE).setReadOnly(true)
@@ -38,7 +38,7 @@ class ChatView(
 
   window.setComponent(panel)
 
-  def render(gui: MultiWindowTextGUI): Unit = {
+  override def render(gui: MultiWindowTextGUI): Unit = {
     inputBox.takeFocus()
     gui.addWindowAndWait(window)
   }
