@@ -1,7 +1,7 @@
 package org.chats
 
 import service.MessengerClient
-import view.{ChatListView, ChatView, LoginView, SimpleTextView}
+import view.{ChatListView, ChatView, LoginView, SimpleTextView, THEME}
 
 import com.monovore.decline.{Command, Opts}
 import org.apache.pekko.Done
@@ -84,19 +84,7 @@ object Main {
       screen.startScreen()
 
       val gui = MultiWindowTextGUI(screen)
-      val theme = SimpleTheme.makeTheme(
-        true,
-        TextColor.ANSI.WHITE,
-        TextColor.ANSI.BLACK,
-        TextColor.ANSI.YELLOW_BRIGHT,
-        TextColor.ANSI.BLACK,
-        TextColor.ANSI.CYAN_BRIGHT,
-        TextColor.ANSI.BLACK,
-        TextColor.ANSI.BLACK
-      )
-
-      theme.getDefinition(classOf[Table[_]]).setCustom("HEADER", TextColor.ANSI.WHITE, TextColor.ANSI.BLACK, SGR.BOLD, SGR.UNDERLINE)
-      gui.setTheme(theme)
+      gui.setTheme(THEME)
 
       val loginView = LoginView()
       val chatListView = ChatListView()
