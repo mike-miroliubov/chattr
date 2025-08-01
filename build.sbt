@@ -68,7 +68,8 @@ lazy val cliClient = project
       name := "cli-client",
       idePackagePrefix := Some("org.chats"),
       libraryDependencies ++= commonDependencies ++ Seq(
-        "com.monovore" %% "decline" % "2.5.0"
+        "com.monovore" %% "decline" % "2.5.0",
+        "com.googlecode.lanterna" % "lanterna" % "3.1.3"
       ),
     )
 
@@ -84,6 +85,7 @@ ThisBuild / assemblyMergeStrategy := {
   // This might cause issues on newer JVM versions (17+) that start caring about them. Maybe revisit later.
   case PathList("module-info.class") => MergeStrategy.concat
   case PathList("META-INF", "versions", "9", "module-info.class") => MergeStrategy.concat
+  case PathList("META-INF", "io.netty.versions.properties") => MergeStrategy.concat
   // Use default strategy for the rest of files
   case x =>
     val oldStrategy = (ThisBuild / assemblyMergeStrategy).value

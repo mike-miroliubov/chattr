@@ -1,17 +1,24 @@
 package org.chats
 
+import dto.OutputMessageDto
 import service.MessengerClient
-import view.SimpleTextView
+import view.*
 
+import cats.syntax.all.*
+import com.googlecode.lanterna.gui2.MultiWindowTextGUI
+import com.googlecode.lanterna.screen.TerminalScreen
+import com.googlecode.lanterna.terminal.DefaultTerminalFactory
 import com.monovore.decline.{Command, Opts}
 import org.apache.pekko.Done
 import org.apache.pekko.actor.CoordinatedShutdown
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import cats.syntax.all._
+import org.apache.pekko.stream.KillSwitches
+import org.apache.pekko.stream.scaladsl.{Keep, Sink}
 
-
+import java.util.UUID
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Using
 
 given system: ActorSystem[Any] = ActorSystem(Behaviors.empty, "my-system")
 given executionContext: ExecutionContext = system.executionContext
@@ -38,31 +45,62 @@ object Main {
       case Left(help) =>
         System.err.println(help)
         sys.exit(1)
-      case Right(config) => startChat(config)
+      case Right(config) =>
+        startChat(config)
     }
   }
 
   private def startChat(config: ChatConfig): Unit = {
-    val userName = chatView.login()
-    val messengerClient = MessengerClient(userName, config.host, config.port)
-    // Subscribe view to model changes
-    val closed = messengerClient.inputStream.runForeach(chatView.displayMessage)
+    Using(DefaultTerminalFactory().createTerminal()) { terminal =>
+      val screen = TerminalScreen(terminal)
+      screen.startScreen()
 
-    messengerClient.closedStream.runForeach { _ =>
-      system.terminate()
-      sys.exit(1)
-    }
+      val gui = MultiWindowTextGUI(screen)
+      gui.setTheme(THEME)
 
-    CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseBeforeServiceUnbind, "websocketClose") { () =>
-      messengerClient.close()
-      chatView.displayNote("Goodbye!")
-      Future.successful(Done)
-    }
+      val loginView = LoginView()
+      val chatListView = ChatListView()
+      loginView.onLogin = userName => {
+        val messengerClient = MessengerClient(userName, config.host, config.port)
 
-    while (true) {
-      for {
-        message <- chatView.readMessage()
-      } yield messengerClient.send(message)
+        chatListView.onChatSelect = chat => {
+          val cView = ChatView(chat)
+
+          // Subscribe view to model changes
+          val (killSwitch, closed) = messengerClient.inputStream
+            .viaMat(KillSwitches.single)(Keep.right)
+            .toMat(Sink.foreach(cView.displayMessage))(Keep.both)
+            .run()
+
+          messengerClient.closedStream.runForeach { _ =>
+            system.terminate()
+            sys.exit(1)
+          }
+
+          cView.onMessageSent = text => {
+            messengerClient.send(OutputMessageDto(UUID.randomUUID().toString, chat, text))
+          }
+          
+          cView.onWindowClosed = () => {
+            killSwitch.shutdown()
+            chatListView.render(gui)
+          }
+
+          cView.render(gui)
+        }
+
+
+        CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseBeforeServiceUnbind, "websocketClose") { () =>
+          messengerClient.close()
+          chatView.displayNote("Goodbye!")
+          Future.successful(Done)
+        }
+
+        chatListView.render(gui)
+      }
+
+
+      loginView.render(gui)
     }
   }
 }

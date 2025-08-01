@@ -6,6 +6,7 @@ import service.ClientActor.{OutgoingMessage, OutgoingMessageWithAck}
 
 import org.apache.pekko
 import org.apache.pekko.actor
+import org.apache.pekko.actor.Scheduler
 import org.apache.pekko.actor.typed.scaladsl.{ActorContext, Behaviors}
 import org.apache.pekko.actor.typed.{ActorRef, Behavior}
 import org.apache.pekko.cluster.sharding.typed.scaladsl.EntityTypeKey
@@ -79,10 +80,16 @@ object Exchange {
     if (state.connectedActors.isEmpty) {
       // TODO: send out a push message here
       context.log.debug(s"User ${state.userId} offline")
+    } else {
+      relayToConnectedActors(context, state, message)
     }
+  }
 
+  private def relayToConnectedActors(context: ActorContext[OutgoingMessage | Command], state: State, message: OutgoingMessage): Unit = {
     given ctx: ExecutionContext = context.executionContext
-    given scheduler: actor.Scheduler = context.system.classicSystem.scheduler
+
+    given scheduler: Scheduler = context.system.classicSystem.scheduler
+
     val asks = state.connectedActors.map { it =>
       // Send message to connected client actor, waiting for an ack back.
       // If ack is not returned in time, initiate a disconnect.
@@ -106,12 +113,14 @@ object Exchange {
       ask
     }
 
+    val log = context.log
+
     // if none of the asks successfully completed, send user a push
     Future.find(asks) { _ => true }.foreach {
       case Some(_) => // TODO: send an ack back that we have delivered
       case None =>
         // TODO: send out a push message here
-        context.log.debug(s"User ${state.userId} offline")
+        log.debug(s"User ${state.userId} offline")
     }
   }
 }
