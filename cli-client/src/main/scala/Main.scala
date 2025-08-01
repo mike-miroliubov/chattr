@@ -1,23 +1,20 @@
 package org.chats
 
+import dto.OutputMessageDto
 import service.MessengerClient
-import view.{ChatListView, ChatView, LoginView, SimpleTextView, THEME}
+import view.*
 
+import cats.syntax.all.*
+import com.googlecode.lanterna.gui2.MultiWindowTextGUI
+import com.googlecode.lanterna.screen.TerminalScreen
+import com.googlecode.lanterna.terminal.DefaultTerminalFactory
 import com.monovore.decline.{Command, Opts}
 import org.apache.pekko.Done
 import org.apache.pekko.actor.CoordinatedShutdown
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import cats.syntax.all.*
-import com.googlecode.lanterna.{SGR, TextColor}
-import com.googlecode.lanterna.graphics.SimpleTheme
-import com.googlecode.lanterna.gui2.MultiWindowTextGUI
-import com.googlecode.lanterna.gui2.table.Table
-import com.googlecode.lanterna.screen.TerminalScreen
-import com.googlecode.lanterna.terminal.DefaultTerminalFactory
 import org.apache.pekko.stream.KillSwitches
 import org.apache.pekko.stream.scaladsl.{Keep, Sink}
-import org.chats.dto.OutputMessageDto
 
 import java.util.UUID
 import scala.concurrent.{ExecutionContext, Future}
@@ -49,36 +46,11 @@ object Main {
         System.err.println(help)
         sys.exit(1)
       case Right(config) =>
-        startChat2(config)
-        //startChat(config)
+        startChat(config)
     }
   }
 
   private def startChat(config: ChatConfig): Unit = {
-    val userName = chatView.login()
-    val messengerClient = MessengerClient(userName, config.host, config.port)
-    // Subscribe view to model changes
-    val closed = messengerClient.inputStream.runForeach(chatView.displayMessage)
-
-    messengerClient.closedStream.runForeach { _ =>
-      system.terminate()
-      sys.exit(1)
-    }
-
-    CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseBeforeServiceUnbind, "websocketClose") { () =>
-      messengerClient.close()
-      chatView.displayNote("Goodbye!")
-      Future.successful(Done)
-    }
-
-    while (true) {
-      for {
-        message <- chatView.readMessage()
-      } yield messengerClient.send(message)
-    }
-  }
-
-  private def startChat2(config: ChatConfig): Unit = {
     Using(DefaultTerminalFactory().createTerminal()) { terminal =>
       val screen = TerminalScreen(terminal)
       screen.startScreen()
