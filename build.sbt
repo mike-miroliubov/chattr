@@ -48,6 +48,8 @@ lazy val messenger = project
       "org.apache.pekko" %% "pekko-persistence-query" % pekkoVersion,
       "org.apache.pekko" %% "pekko-cluster-tools" % pekkoVersion,
 
+      "org.apache.pekko" %% "pekko-connectors-cassandra" % "1.1.0",
+
       "org.apache.pekko" %% "pekko-multi-node-testkit" % pekkoVersion % Test
 
     ),
