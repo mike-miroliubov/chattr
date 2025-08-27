@@ -9,6 +9,9 @@ import org.apache.pekko.actor.typed.{ActorRef, Behavior, PostStop, Signal}
 import org.apache.pekko.cluster.sharding.typed.ShardingEnvelope
 import org.chats.config.{ExchangeShardRegion, GroupShardRegion}
 import org.chats.config.serialization.JsonSerializable
+import org.chats.repository.MessageRepository
+
+import scala.util.{Failure, Success}
 
 /**
  * This is the main user actor. It handles user's incoming and outgoing messages.
@@ -17,7 +20,7 @@ import org.chats.config.serialization.JsonSerializable
 class ClientActor(context: ActorContext[ClientActor.Command],
                   userId: String,
                   outputActor: ActorRef[OutgoingMessage | ServiceCommand])
-                 (using exchangeShardRegion: ExchangeShardRegion, groupShardRegion: GroupShardRegion) extends AbstractBehavior[ClientActor.Command](context) {
+                 (using exchangeShardRegion: ExchangeShardRegion, groupShardRegion: GroupShardRegion, messageRepository: MessageRepository) extends AbstractBehavior[ClientActor.Command](context) {
   context.log.info("User {} joined", userId)
 
   // Once the client is instantiated, we connect to an Exchange by sending a message to a ShardRegion.
@@ -27,12 +30,17 @@ class ClientActor(context: ActorContext[ClientActor.Command],
   override def onMessage(msg: ClientActor.Command): Behavior[ClientActor.Command] = msg match {
     case in: IncomingMessage =>
       context.log.info("Got message: {}", in.text)
-      // Because we don't know where the recepient client actor lives we instead send it to an exchange of that user.
-      // This will create an empty exchange if that user is not online.
-      in.to match {
-        case s"g#${_}" => groupShardRegion ! ShardingEnvelope(in.to, OutgoingMessage(in.messageId, in.text, userId))
-        case _ => exchangeShardRegion ! ShardingEnvelope(in.to, OutgoingMessage(in.messageId, in.text, userId))
-      }
+      // first save the message into the DB, once done - send over
+      messageRepository.save(in).onComplete {
+        case Failure(exception) => throw exception
+        case Success(value) =>
+          // Because we don't know where the recepient client actor lives we instead send it to an exchange of that user.
+          // This will create an empty exchange if that user is not online.
+          in.to match {
+            case s"g#${_}" => groupShardRegion ! ShardingEnvelope(in.to, OutgoingMessage(in.messageId, in.text, userId))
+            case _ => exchangeShardRegion ! ShardingEnvelope(in.to, OutgoingMessage(in.messageId, in.text, userId))
+          }
+      }(context.executionContext)
 
       this
     case out: OutgoingMessage =>

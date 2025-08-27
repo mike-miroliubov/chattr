@@ -5,6 +5,9 @@ import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.cluster.sharding.typed.ShardingEnvelope
+import org.apache.pekko.stream.connectors.cassandra.CassandraSessionSettings
+import org.apache.pekko.stream.connectors.cassandra.scaladsl.{CassandraSession, CassandraSessionRegistry}
+import org.chats.repository.{MessageRepository, MessageRepositoryImpl}
 import org.chats.service.ClientManagerActor
 import org.chats.service.GroupExchange.MakeGroup
 
@@ -18,7 +21,7 @@ class AppConfig(resourceName: String = "application.conf") {
   // This was ActorSystem[Any] in the Pekko Http docs, not sure if its okay to reuse this system for application's actors
   // or we need to build a new one. This somehow works for now.
   implicit val system: ActorSystem[ClientManagerActor.Command] = ActorSystem(
-    Behaviors.setup(context => ClientManagerActor(context, userSharding, groupSharding)),
+    Behaviors.setup(context => ClientManagerActor(context, userSharding, groupSharding, messageRepository)),
     "my-system",
     customizeConfigWithEnvironment(resourceName)
   )
@@ -29,6 +32,9 @@ class AppConfig(resourceName: String = "application.conf") {
 
   // TODO: remove, this is a test group
   groupSharding ! ShardingEnvelope("g#test-group", MakeGroup("morpheus", Set("kite", "foo", "neo")))
+
+  val cassandraSession: CassandraSession = CassandraSessionRegistry.get(system).sessionFor(CassandraSessionSettings())
+  val messageRepository: MessageRepository = MessageRepositoryImpl(cassandraSession, system)
 
   private def customizeConfigWithEnvironment(resourceName: String): Config = {
     ConfigFactory.parseString(

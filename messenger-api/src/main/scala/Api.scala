@@ -78,7 +78,7 @@ class Api(using system: ActorSystem[ClientManagerActor.Command], executionContex
         .flatMapConcat(m => m.textStream)
         .map { m =>
           val dto = m.parseJson.convertTo[InputMessageDto]
-          IncomingMessage(dto.id, dto.text, dto.to, "")
+          IncomingMessage(dto.id, dto.text, dto.to, userName)
         } // transform WS message to an IncomingMessage DTO
         .to(ActorSink.actorRef( // process messages with a ClientActor by dumping to an ActorSink
           clientActor,

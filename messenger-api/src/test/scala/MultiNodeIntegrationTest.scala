@@ -2,7 +2,7 @@ package org.chats
 
 import config.{ExchangeShardRegion, GroupShardRegion, ShardingConfig}
 import dto.{InputMessageDto, MessengerJsonProtocol}
-import service.ClientManagerActor
+import service.{ClientActor, ClientManagerActor}
 import service.GroupExchange.{AddMember, MakeGroup}
 
 import com.typesafe.config.ConfigFactory
@@ -12,6 +12,7 @@ import org.apache.pekko.cluster.sharding.typed.ShardingEnvelope
 import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.model.ws.{Message, TextMessage, WebSocketRequest}
 import org.apache.pekko.stream.scaladsl.{Flow, Keep, Sink, Source}
+import org.chats.repository.MessageRepository
 import org.scalatest.{BeforeAndAfterAll, Tag}
 import org.scalatest.flatspec.AsyncFlatSpec
 import spray.json.*
@@ -20,7 +21,7 @@ import java.net.ServerSocket
 import java.util.UUID
 import scala.collection.immutable.Seq
 import scala.concurrent.duration.*
-import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor, Future}
+import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor, Future, Promise}
 import scala.util.Using
 
 object MultiNode extends Tag("org,chats.tags.MultiNode")
@@ -214,7 +215,7 @@ class MultiNodeIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with
     // This was ActorSystem[Any] in the Pekko Http docs, not sure if its okay to reuse this system for application's actors
     // or we need to build a new one. This somehow works for now.
     implicit val system: ActorSystem[ClientManagerActor.Command] = ActorSystem(
-      Behaviors.setup(context => ClientManagerActor(context, userSharding, groupSharding)),
+      Behaviors.setup(context => ClientManagerActor(context, userSharding, groupSharding, messageRepository)),
       s"my-system",
       ConfigFactory.parseString(
         s"""
@@ -224,6 +225,9 @@ class MultiNodeIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with
         """).withFallback(ConfigFactory.load("application-test.conf"))
     )
     val executionContext: ExecutionContextExecutor = system.executionContext
+    val messageRepository: MessageRepository = new MessageRepository {
+      override def save(msg: ClientActor.IncomingMessage): Future[ClientActor.IncomingMessage] = Promise.successful(msg).future
+    }
 
     // Makes sure the ShardRegion is initialized at startup
     val ShardingConfig(userSharding: ExchangeShardRegion, groupSharding: GroupShardRegion) = ShardingConfig()

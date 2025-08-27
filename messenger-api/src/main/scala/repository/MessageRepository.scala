@@ -11,10 +11,14 @@ import org.apache.pekko.stream.scaladsl.{Flow, Sink, Source}
 
 import scala.concurrent.Future
 
-class MessageRepository(
+trait MessageRepository {
+  def save(msg: IncomingMessage): Future[IncomingMessage]
+}
+
+class MessageRepositoryImpl(
                              cassandraSession: CassandraSession,
                              actorSystem: ActorSystem[_]
-                           ) {
+                           ) extends MessageRepository {
   given session: CassandraSession = cassandraSession
   given system: ActorSystem[_] = actorSystem
 

@@ -17,7 +17,7 @@ class MessageRepositoryTest extends AsyncFlatSpec {
 
 
   "Repository" should "save message" in {
-    val repo = MessageRepository(cassandraSession, testSystem)
+    val repo = MessageRepositoryImpl(cassandraSession, testSystem)
     val message = IncomingMessage(UUID.randomUUID().toString, "hello", "world", "scala")
     repo.save(message).map { it =>
       assert(it == message)
