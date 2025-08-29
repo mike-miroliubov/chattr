@@ -50,7 +50,10 @@ lazy val messenger = project
 
       "org.apache.pekko" %% "pekko-connectors-cassandra" % "1.1.0",
 
-      "org.apache.pekko" %% "pekko-multi-node-testkit" % pekkoVersion % Test
+      // Testing
+      "org.apache.pekko" %% "pekko-multi-node-testkit" % pekkoVersion % Test,
+      "com.dimafeng" %% "testcontainers-scala-scalatest" % "0.43.0" % Test,
+      "com.dimafeng" %% "testcontainers-scala-cassandra" % "0.43.0" % Test
 
     ),
     javacOptions += "-parameters",
