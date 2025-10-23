@@ -229,6 +229,7 @@ class MultiNodeIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with
       // a no-op repository
       override def save(msg: ClientActor.IncomingMessage): Future[ClientActor.IncomingMessage] = Promise.successful(msg).future
       override def findChatMessages(chatId: String): Future[Seq[ClientActor.IncomingMessage]] = Promise.successful(Seq()).future
+      override def updateInbox(userId: String, msg: ClientActor.IncomingMessage): Future[_] = Promise.successful(true).future
     }
 
     // Makes sure the ShardRegion is initialized at startup

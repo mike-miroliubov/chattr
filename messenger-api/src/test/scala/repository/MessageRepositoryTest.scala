@@ -12,6 +12,7 @@ import org.chats.service.ClientActor.IncomingMessage
 import org.scalatest.flatspec.AsyncFlatSpec
 
 import java.util.UUID
+import scala.util.Try
 
 class MessageRepositoryTest extends AsyncFlatSpec {
   private val containerDef = CassandraContainer.Def(initScript = Some("migrations/messages.cql"))
@@ -28,7 +29,7 @@ class MessageRepositoryTest extends AsyncFlatSpec {
 
   "Repository" should "save message" in {
     val repo = MessageRepositoryImpl(cassandraSession, testSystem)
-    val message = IncomingMessage(UUID.randomUUID().toString, "hello", "world", "scala")
+    val message = IncomingMessage(UUID.randomUUID().toString, "hello", to = "world", from = "scala")
 
     for {
       saved <- repo.save(message)
@@ -36,6 +37,16 @@ class MessageRepositoryTest extends AsyncFlatSpec {
     } yield {
       assert(saved == message)
       assert(loaded == Seq(message))
+    }
+  }
+
+  "Repository" should "update inbox" in {
+    val repo = MessageRepositoryImpl(cassandraSession, testSystem)
+    val message = IncomingMessage(UUID.randomUUID().toString, "hello", to = "world", from = "scala")
+
+    for _ <- repo.updateInbox("scala", message) yield {
+      // no exceptions expected
+      succeed
     }
   }
 }
