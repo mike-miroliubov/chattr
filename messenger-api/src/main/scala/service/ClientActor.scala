@@ -9,8 +9,11 @@ import org.apache.pekko.actor.typed.{ActorRef, Behavior, PostStop, Signal}
 import org.apache.pekko.cluster.sharding.typed.ShardingEnvelope
 import org.chats.config.{ExchangeShardRegion, GroupShardRegion}
 import org.chats.config.serialization.JsonSerializable
+import org.chats.model.ChattrMessage
 import org.chats.repository.MessageRepository
 
+import java.time.{LocalDateTime, ZoneOffset}
+import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
 /**
@@ -31,7 +34,7 @@ class ClientActor(context: ActorContext[ClientActor.Command],
     case in: IncomingMessage =>
       context.log.info("Got message: {}", in.text)
       // first save the message into the DB, once done - send over
-      messageRepository.save(in).onComplete {
+      saveMessage(in).onComplete {
         case Failure(exception) => throw exception
         case Success(value) =>
           // Because we don't know where the recepient client actor lives we instead send it to an exchange of that user.
@@ -59,6 +62,19 @@ class ClientActor(context: ActorContext[ClientActor.Command],
       exchangeShardRegion ! ShardingEnvelope(userId, Exchange.Disconnect(context.self))
       outputActor ! ConnectionClosed
       Behaviors.stopped
+  }
+
+  private def saveMessage(incomingMessage: IncomingMessage): Future[_] = {
+    val msg = ChattrMessage(
+      s"${incomingMessage.to}#${incomingMessage.from}",
+      incomingMessage.messageId,
+      incomingMessage.from,
+      incomingMessage.text,
+      LocalDateTime.now(ZoneOffset.UTC),
+      LocalDateTime.now(ZoneOffset.UTC)
+    )
+
+    messageRepository.save(msg)
   }
 
   override def onSignal: PartialFunction[Signal, Behavior[ClientActor.Command]] = {

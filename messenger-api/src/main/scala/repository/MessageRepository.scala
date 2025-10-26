@@ -1,7 +1,7 @@
 package org.chats
 package repository
 
-import service.ClientActor.IncomingMessage
+import model.ChattrMessage
 
 import com.datastax.oss.driver.api.core.cql.PreparedStatement
 import org.apache.pekko.actor.typed.ActorSystem
@@ -9,12 +9,13 @@ import org.apache.pekko.stream.connectors.cassandra.CassandraWriteSettings
 import org.apache.pekko.stream.connectors.cassandra.scaladsl.{CassandraFlow, CassandraSession, CassandraSource}
 import org.apache.pekko.stream.scaladsl.{Flow, Sink, Source}
 
+import java.time.{LocalDateTime, ZoneOffset}
 import scala.concurrent.Future
 
 trait MessageRepository {
-  def save(msg: IncomingMessage): Future[IncomingMessage]
-  def findChatMessages(chatId: String): Future[Seq[IncomingMessage]]
-  def updateInbox(userId: String, msg: IncomingMessage): Future[_]
+  def save(msg: ChattrMessage): Future[ChattrMessage]
+  def findChatMessages(chatId: String): Future[Seq[ChattrMessage]]
+  def updateInbox(userId: String, msg: ChattrMessage): Future[_]
 }
 
 class MessageRepositoryImpl(
@@ -24,20 +25,45 @@ class MessageRepositoryImpl(
   given session: CassandraSession = cassandraSession
   given system: ActorSystem[_] = actorSystem
 
-  private val saveFlow = Flow[IncomingMessage].via(CassandraFlow.create(CassandraWriteSettings.defaults,
-    """INSERT INTO chattr.message(chat_id,
-    message_id,
-    from_user_id,
-    message) VALUES (?,?,?,?)""", saveStatementBinder))
+  private val saveStatementBinder =
+    (msg: ChattrMessage, stmt: PreparedStatement) => stmt.bind(
+      msg.chatId,
+      msg.messageId,
+      msg.fromUserId,
+      msg.message,
+      msg.sentAt.toInstant(ZoneOffset.UTC),
+      msg.receivedAt.toInstant(ZoneOffset.UTC),
+      msg.deliveredAt.map(_.toInstant(ZoneOffset.UTC)).orNull
+    )
+
+  private val saveFlow = Flow[ChattrMessage].via(CassandraFlow.create(CassandraWriteSettings.defaults,
+    """
+      INSERT INTO chattr.message(
+        chat_id,
+        message_id,
+        from_user_id,
+        message,
+        sent_at,
+        received_at,
+        delivered_at
+      ) VALUES (?,?,?,?,?,?,?)""", saveStatementBinder))
 
   private val updateInboxStatementBinder =
-    (inboxMsg: (String, IncomingMessage), stmt: PreparedStatement) => {
+    (inboxMsg: (String, ChattrMessage), stmt: PreparedStatement) => {
       inboxMsg match {
-        case (userId, message) => stmt.bind(userId, s"${message.to}#${message.from}", message.from, message.messageId, message.text)
+        // s"${message.to}#${message.from}"
+        case (userId, message) => stmt.bind(
+          userId,
+          message.chatId,
+          message.fromUserId,
+          message.sentAt.toInstant(ZoneOffset.UTC),
+          message.messageId,
+          message.message
+        )
       }
     }
 
-  private val updateInboxFlow = Flow[(String, IncomingMessage)].via(CassandraFlow.create(CassandraWriteSettings.defaults,
+  private val updateInboxFlow = Flow[(String, ChattrMessage)].via(CassandraFlow.create(CassandraWriteSettings.defaults,
     """
       |INSERT INTO chattr.inbox(
         |user_id,
@@ -46,29 +72,30 @@ class MessageRepositoryImpl(
         |last_message_sent_at,
         |last_message_id,
         |last_message
-      |) VALUES (?, ?, ?, toUnixTimestamp(now()), ?, ?)
+      |) VALUES (?, ?, ?, ?, ?, ?)
       |""".stripMargin, updateInboxStatementBinder))
 
 
-  def save(msg: IncomingMessage): Future[IncomingMessage] =
+  def save(msg: ChattrMessage): Future[ChattrMessage] =
     Source.single(msg)
     .via(saveFlow)
     .runWith(Sink.head)
 
-  override def findChatMessages(chatId: String): Future[Seq[IncomingMessage]] =
+  override def findChatMessages(chatId: String): Future[Seq[ChattrMessage]] =
     CassandraSource("""SELECT * FROM chattr.message WHERE chat_id = ?""", chatId)
-      .map(row => IncomingMessage(
+      .map(row => ChattrMessage(
+        row.getString("chat_id"),
         row.getString("message_id"),
+        row.getString("from_user_id"),
         row.getString("message"),
-        chatId,
-        row.getString("from_user_id")))
+        LocalDateTime.ofInstant(row.getInstant("sent_at"), ZoneOffset.UTC),
+        LocalDateTime.ofInstant(row.getInstant("received_at"), ZoneOffset.UTC),
+        Option(row.getInstant("delivered_at")).map(LocalDateTime.ofInstant(_, ZoneOffset.UTC))
+      ))
       .runWith(Sink.seq)
 
-  override def updateInbox(userId: String, msg: IncomingMessage): Future[_] = Source.single((userId, msg))
+  override def updateInbox(userId: String, msg: ChattrMessage): Future[_] = Source.single((userId, msg))
     .via(updateInboxFlow)
     .runWith(Sink.head)
 }
-
-private val saveStatementBinder =
-  (msg: IncomingMessage, stmt: PreparedStatement) => stmt.bind(msg.to, msg.messageId, msg.from, msg.text)
 

@@ -12,6 +12,7 @@ import org.apache.pekko.cluster.sharding.typed.ShardingEnvelope
 import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.model.ws.{Message, TextMessage, WebSocketRequest}
 import org.apache.pekko.stream.scaladsl.{Flow, Keep, Sink, Source}
+import org.chats.model.ChattrMessage
 import org.chats.repository.MessageRepository
 import org.scalatest.{BeforeAndAfterAll, Tag}
 import org.scalatest.flatspec.AsyncFlatSpec
@@ -227,9 +228,9 @@ class MultiNodeIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with
     val executionContext: ExecutionContextExecutor = system.executionContext
     val messageRepository: MessageRepository = new MessageRepository {
       // a no-op repository
-      override def save(msg: ClientActor.IncomingMessage): Future[ClientActor.IncomingMessage] = Promise.successful(msg).future
-      override def findChatMessages(chatId: String): Future[Seq[ClientActor.IncomingMessage]] = Promise.successful(Seq()).future
-      override def updateInbox(userId: String, msg: ClientActor.IncomingMessage): Future[_] = Promise.successful(true).future
+      override def save(msg: ChattrMessage): Future[ChattrMessage] = Promise.successful(msg).future
+      override def findChatMessages(chatId: String): Future[Seq[ChattrMessage]] = Promise.successful(Seq()).future
+      override def updateInbox(userId: String, msg: ChattrMessage): Future[_] = Promise.successful(true).future
     }
 
     // Makes sure the ShardRegion is initialized at startup
