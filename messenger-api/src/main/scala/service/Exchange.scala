@@ -74,7 +74,7 @@ object Exchange {
   }
 
   private def relayMessage(context: ActorContext[OutgoingMessage | Command], state: State, message: OutgoingMessage): Unit = {
-    context.log.debug(s"Relaying message ${message.text} to ${state.connectedActors}")
+    context.log.debug(s"Relaying message ${message.chattrMessage.message} to ${state.connectedActors}")
 
     // TODO: save message to DB here
     if (state.connectedActors.isEmpty) {
