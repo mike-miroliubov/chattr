@@ -64,7 +64,11 @@ lazy val chatsApi = project
   .settings(
     name := "chats-api",
     idePackagePrefix := Some("org.chats"),
-    libraryDependencies ++= commonDependencies,
+    libraryDependencies ++= commonDependencies ++ Seq(
+      "io.getquill" %% "quill-cassandra" % "4.8.6",
+      "com.datastax.oss" % "java-driver-core" % "4.17.0",
+      "com.github.pureconfig" %% "pureconfig-core" % "0.17.9"
+    )
   )
 
 lazy val cliClient = project

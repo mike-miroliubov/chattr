@@ -2,8 +2,9 @@ package org.chats
 package routes
 
 import config.chatService
-import dto.{ApiError, ChatContent, Chats, Errors, Message, WhisperJsonProtocol}
+import dto.{ApiError, Chat, ChatContent, Chats, Errors, Message, WhisperJsonProtocol}
 import routes.Api.{JavaUUID, complete, concat, path, pathEnd, pathPrefix}
+import scala.concurrent.ExecutionContext.Implicits.global
 
 import org.apache.pekko.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import org.apache.pekko.http.scaladsl.model.StatusCodes
@@ -13,7 +14,11 @@ object ChatsApi extends Directives with SprayJsonSupport with WhisperJsonProtoco
   val routes: Route = pathPrefix("chats") {
     concat(
       (pathEnd & get) {
-        complete(Chats(chatService.getChats))
+        complete(
+          chatService.getChats.map { c =>
+            Chats(c.map(it => Chat(it.chatId, it.lastMessageFromUserId, it.lastMessage)))
+         }
+        )
       },
 
       (path(JavaUUID) & get) { uuid =>

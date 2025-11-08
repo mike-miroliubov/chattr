@@ -1,9 +1,11 @@
 package org.chats
 package repository
 
-import dto.Chat
+import model.Chat
+
+import scala.concurrent.Future
 
 trait ChatRepository {
-  def findAll: Seq[Chat]
+  def findAll: Future[Seq[Chat]]
   def getById(chatId: String): Option[Chat]
 }
