@@ -1,8 +1,10 @@
 package org.chats
 package repository
 
-import dto.Message
+import model.Message
+
+import scala.concurrent.Future
 
 trait MessageRepository {
-  def getChatMessages(chatId: String): Seq[Message]
+  def getChatMessages(chatId: String): Future[Seq[Message]]
 }
