@@ -54,7 +54,7 @@ class Api(using system: ActorSystem[ClientManagerActor.Command], executionContex
 
     // To handle websocket, we need a source that produces WS Message-s. Map our DTO messages to WS contract.
     val wsOutputMessageSource = outputMessageSource.map {
-      case OutgoingMessage(id, text, from) => TextMessage(OutputMessageDto(id, from, text).toJson.toString)
+      case OutgoingMessage(msg) => TextMessage(OutputMessageDto(msg).toJson.toString)
     }
 
     for {
@@ -78,7 +78,7 @@ class Api(using system: ActorSystem[ClientManagerActor.Command], executionContex
         .flatMapConcat(m => m.textStream)
         .map { m =>
           val dto = m.parseJson.convertTo[InputMessageDto]
-          IncomingMessage(dto.id, dto.text, dto.to, "")
+          IncomingMessage(dto.toModel(userName))
         } // transform WS message to an IncomingMessage DTO
         .to(ActorSink.actorRef( // process messages with a ClientActor by dumping to an ActorSink
           clientActor,

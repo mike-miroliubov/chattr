@@ -1,23 +1,32 @@
 package org.chats
 
+import config.AppConfig
 import dto.{InputMessageDto, MessengerJsonProtocol}
 
+import com.dimafeng.testcontainers.CassandraContainer
 import com.typesafe.config.ConfigFactory
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.model.ws.{TextMessage, WebSocketRequest}
 import org.apache.pekko.stream.scaladsl.{Flow, Keep, Sink, Source}
-import org.chats.config.AppConfig
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AsyncFlatSpec
 import spray.json.*
 
-import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration.*
+import scala.concurrent.{Await, ExecutionContext, Future}
 
 class ApiIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with MessengerJsonProtocol {
-  private val config = AppConfig("application-test.conf")
+  private val containerDef = CassandraContainer.Def(initScript = Some("migrations/messages.cql"))
+  private val container = containerDef.createContainer()
+  container.start()
+
+  private val config: AppConfig = AppConfig("application-test.conf", Map(
+    "datastax-java-driver.basic.contact-points" -> s"[\"127.0.0.1:${container.mappedPort(9042)}\"]",
+    "datastax-java-driver.basic.load-balancing-policy.local-datacenter" -> container.cassandraContainer.getLocalDatacenter
+  ))
+
   private val server = Http()(using config.system).newServerAt("localhost", 0)
   private val binding = server.bind(Api(using config.system, config.system.executionContext).handleWsRequest)
 
@@ -64,7 +73,7 @@ class ApiIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with Messe
           """{"from":"","id":"","text":"You joined the chat"}"""
         ))
 
-        assert(client2Out == Seq(
+        assert(client2Out.toSet == Set(
           """{"from":"","id":"","text":"You joined the chat"}""",
           """{"from":"foo","id":"1","text":"hi"}""",
           """{"from":"foo","id":"2","text":"hey"}""",

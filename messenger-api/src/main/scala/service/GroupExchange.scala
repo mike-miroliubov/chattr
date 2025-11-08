@@ -71,11 +71,11 @@ object GroupExchange {
     }
 
     def relayMessage(context: ActorContext[OutgoingMessage | Command], state: State, message: OutgoingMessage): Unit = {
-      context.log.debug(s"Relaying message ${message.text} to ${state.members}")
-      if (state.owner != message.from) {
+      context.log.debug(s"Relaying message ${message.chattrMessage.message} to ${state.members}")
+      if (state.owner != message.chattrMessage.fromUserId) {
         exchangeShardRegion ! ShardingEnvelope(state.owner, message)
       }
-      state.members.withFilter(_ != message.from).foreach { u =>
+      state.members.withFilter(_ != message.chattrMessage.fromUserId).foreach { u =>
         exchangeShardRegion ! ShardingEnvelope(u, message)
       }
     }

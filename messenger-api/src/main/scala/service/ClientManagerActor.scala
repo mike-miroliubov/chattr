@@ -7,6 +7,7 @@ import service.ClientManagerActor.ConnectClient
 import org.apache.pekko.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
 import org.apache.pekko.actor.typed.{ActorRef, Behavior, PostStop, Signal}
 import org.chats.config.{ExchangeShardRegion, GroupShardRegion}
+import org.chats.repository.MessageRepository
 
 /**
  * This is the root class of all client actors. It handles creation of new actors as users connect.
@@ -19,7 +20,8 @@ class ClientManagerActor(context: ActorContext[ClientManagerActor.Command],
                          // actor not dependent on sharding.
                          // For now this works.
                          exchangeShardRegionSupplier: => ExchangeShardRegion,
-                         groupShardRegionSupplier: => GroupShardRegion)
+                         groupShardRegionSupplier: => GroupShardRegion,
+                         messageRepositorySupplier: => MessageRepository)
                          extends AbstractBehavior[ClientManagerActor.Command](context) {
   context.log.info("Messenger Application started")
 
@@ -27,6 +29,7 @@ class ClientManagerActor(context: ActorContext[ClientManagerActor.Command],
     case ConnectClient(userId, output, replyTo) =>
       given groupShardRegion: GroupShardRegion = groupShardRegionSupplier
       given userShardingRegion: ExchangeShardRegion = exchangeShardRegionSupplier
+      given messageRepository: MessageRepository = messageRepositorySupplier
       val actor = context.child(userId)
         .getOrElse(context.spawn(Behaviors.setup(context => ClientActor(context, userId, output)), s"client-$userId"))
         .unsafeUpcast[ClientActor.Command]

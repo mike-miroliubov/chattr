@@ -8,7 +8,7 @@ import org.apache.pekko.event.slf4j.Logger
 
 import java.time.LocalDateTime
 
-class InMemoryRepository extends ChatRepository with MessageRepository {
+class InMemoryRepository extends MessageRepository {
   logger.info("Creating repository")
 
   val chats = Map(
@@ -17,10 +17,6 @@ class InMemoryRepository extends ChatRepository with MessageRepository {
   val messages = Map(
     "2fc9a874-271f-45ea-992c-e2f2da483a86" -> List(
       Message("fa5af2d2-7627-4839-8c06-b9873fa68116", "alice", "hi bob", LocalDateTime.now())))
-
-  override def findAll: Seq[Chat] = chats.values.toSeq
-
-  override def getById(chatId: String): Option[Chat] = chats.get(chatId)
 
   override def getChatMessages(chatId: String): Seq[Message] = messages(chatId)
 }

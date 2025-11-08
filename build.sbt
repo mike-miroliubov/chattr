@@ -48,7 +48,12 @@ lazy val messenger = project
       "org.apache.pekko" %% "pekko-persistence-query" % pekkoVersion,
       "org.apache.pekko" %% "pekko-cluster-tools" % pekkoVersion,
 
-      "org.apache.pekko" %% "pekko-multi-node-testkit" % pekkoVersion % Test
+      "org.apache.pekko" %% "pekko-connectors-cassandra" % "1.1.0",
+
+      // Testing
+      "org.apache.pekko" %% "pekko-multi-node-testkit" % pekkoVersion % Test,
+      "com.dimafeng" %% "testcontainers-scala-scalatest" % "0.43.0" % Test,
+      "com.dimafeng" %% "testcontainers-scala-cassandra" % "0.43.0" % Test
 
     ),
     javacOptions += "-parameters",
@@ -59,7 +64,11 @@ lazy val chatsApi = project
   .settings(
     name := "chats-api",
     idePackagePrefix := Some("org.chats"),
-    libraryDependencies ++= commonDependencies,
+    libraryDependencies ++= commonDependencies ++ Seq(
+      "io.getquill" %% "quill-cassandra" % "4.8.6",
+      "com.datastax.oss" % "java-driver-core" % "4.17.0",
+      "com.github.pureconfig" %% "pureconfig-core" % "0.17.9"
+    )
   )
 
 lazy val cliClient = project
