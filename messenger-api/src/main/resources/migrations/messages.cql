@@ -35,6 +35,5 @@ CREATE TABLE chattr.inbox (
   last_message_sent_at TIMESTAMP,
   last_message_id VARCHAR,
   last_message TEXT,
-  new_messages INT,
-  PRIMARY KEY (user_id, chat_id, last_message_id)
-) WITH CLUSTERING ORDER BY (chat_id ASC, last_message_id DESC);
+  PRIMARY KEY (user_id, chat_id)
+) WITH CLUSTERING ORDER BY (chat_id ASC);

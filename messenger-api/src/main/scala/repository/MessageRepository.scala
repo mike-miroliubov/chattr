@@ -16,6 +16,7 @@ trait MessageRepository {
   def save(msg: ChattrMessage): Future[ChattrMessage]
   def findChatMessages(chatId: String): Future[Seq[ChattrMessage]]
   def updateInbox(userId: String, msg: ChattrMessage): Future[_]
+  def loadInbox(userId: String): Future[Seq[ChattrMessage]]
 }
 
 class MessageRepositoryImpl(
@@ -97,5 +98,17 @@ class MessageRepositoryImpl(
   override def updateInbox(userId: String, msg: ChattrMessage): Future[_] = Source.single((userId, msg))
     .via(updateInboxFlow)
     .runWith(Sink.head)
+
+  override def loadInbox(userId: String): Future[Seq[ChattrMessage]] = CassandraSource(
+    """SELECT * FROM chattr.inbox WHERE user_id = ?""", userId)
+      .map(row => ChattrMessage(
+        row.getString("chat_id"),
+        row.getString("last_message_id"),
+        row.getString("last_message_from_user_id"),
+        row.getString("last_message"),
+        LocalDateTime.ofInstant(row.getInstant("last_message_sent_at"), ZoneOffset.UTC),
+        LocalDateTime.ofInstant(row.getInstant("last_message_sent_at"), ZoneOffset.UTC)
+      ))
+      .runWith(Sink.seq)
 }
 

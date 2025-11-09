@@ -70,9 +70,11 @@ class MessageRepositoryTest extends AsyncFlatSpec {
     val message = ChattrMessage(s"scala#world", UUID.randomUUID().toString, "scala", "hello",
       LocalDateTime.now(ZoneOffset.UTC), LocalDateTime.now(ZoneOffset.UTC), Some(LocalDateTime.now(ZoneOffset.UTC)))
 
-    for _ <- repo.updateInbox("scala", message) yield {
-      // no exceptions expected
-      succeed
+    for {
+      _ <- repo.updateInbox("scala", message)
+      loaded <- repo.loadInbox("scala")
+    } yield {
+      assert(loaded.head.messageId == message.messageId)
     }
   }
 }

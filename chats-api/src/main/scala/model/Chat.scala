@@ -5,8 +5,7 @@ case class Chat(
     userId: String,
     chatId: String,
     lastMessageFromUserId: String,
-    //lastMessageSentAt: java.time.Instant,
+    lastMessageSentAt: java.time.Instant,
     lastMessageId: String,
     lastMessage: String,
-    newMessages: Int
 )

@@ -7,19 +7,10 @@ import io.getquill.*
 
 import scala.concurrent.{ExecutionContext, Future}
 
-
-object Queries {
-  val findAllQuery: Quoted[EntityQuery[Chat]] = quote {
-    query[Chat]
-  }
-}
-
 class CassandraChatRepository(val ctx: CassandraAsyncContext[SnakeCase])(using ExecutionContext) extends ChatRepository{
   import ctx._
   
-  def findAll: Future[Seq[Chat]] = ctx.run(quote {
-    querySchema[Chat]("inbox")
+  def findAll(userId: String): Future[Seq[Chat]] = ctx.run(quote {
+    querySchema[Chat]("inbox").filter(_.userId == lift(userId))
   })
-
-  def getById(chatId: String): Option[Chat] = ???
 }

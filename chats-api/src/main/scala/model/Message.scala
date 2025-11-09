@@ -8,7 +8,7 @@ case class Message (
   messageId: String, // sort key
   fromUserId: String,
   message: String,
-//  sentAt: LocalDateTime,
-//  receivedAt: LocalDateTime,
-//  deliveredAt: Option[LocalDateTime] = None
+  sentAt: LocalDateTime,
+  receivedAt: LocalDateTime,
+  deliveredAt: Option[LocalDateTime] = None
 )
