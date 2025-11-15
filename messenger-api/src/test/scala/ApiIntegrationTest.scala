@@ -16,6 +16,7 @@ import spray.json.*
 
 import scala.concurrent.duration.*
 import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.jdk.CollectionConverters.given
 
 class ApiIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with MessengerJsonProtocol {
   private val containerDef = CassandraContainer.Def(initScript = Some("migrations/messages.cql"))
@@ -23,7 +24,7 @@ class ApiIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with Messe
   container.start()
 
   private val config: AppConfig = AppConfig("application-test.conf", Map(
-    "datastax-java-driver.basic.contact-points" -> s"[\"127.0.0.1:${container.mappedPort(9042)}\"]",
+    "datastax-java-driver.basic.contact-points" -> List(s"127.0.0.1:${container.mappedPort(9042)}").asJava,
     "datastax-java-driver.basic.load-balancing-policy.local-datacenter" -> container.cassandraContainer.getLocalDatacenter
   ))
 

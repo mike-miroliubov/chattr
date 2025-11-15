@@ -1,7 +1,7 @@
 package org.chats
 package repository
 
-import config.customizeConfigWithEnvironment
+import config.initConfig
 import model.ChattrMessage
 
 import com.dimafeng.testcontainers.CassandraContainer
@@ -17,14 +17,15 @@ import org.scalatest.matchers.should.Matchers.*
 import java.time.temporal.ChronoUnit
 import java.time.{LocalDateTime, ZoneOffset}
 import java.util.UUID
+import scala.jdk.CollectionConverters.given
 
 class MessageRepositoryTest extends AsyncFlatSpec {
   private val containerDef = CassandraContainer.Def(initScript = Some("migrations/messages.cql"))
   private val container = containerDef.createContainer()
   container.start()
 
-  private val config: Config = customizeConfigWithEnvironment("application-repository-test.conf", Map(
-    "datastax-java-driver.basic.contact-points" -> s"[\"127.0.0.1:${container.mappedPort(9042)}\"]",
+  private val config: Config = initConfig("application-repository-test.conf", Map(
+    "datastax-java-driver.basic.contact-points" -> List(s"127.0.0.1:${container.mappedPort(9042)}").asJava,
     "datastax-java-driver.basic.load-balancing-policy.local-datacenter" -> container.cassandraContainer.getLocalDatacenter
   ))
   val testSystem: ActorSystem[_] = ActorSystem(Behaviors.empty, "test-system", config)

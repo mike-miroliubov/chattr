@@ -14,7 +14,6 @@ import org.apache.pekko.cluster.sharding.typed.ShardingEnvelope
 
 import java.time.LocalDateTime
 import scala.concurrent.{Await, Future}
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.{Failure, Success}
 
 object ClientActor {
@@ -53,12 +52,7 @@ class ClientActor(
     case IncomingMessage(in) =>
       context.log.debug("Got message: {}", in.message)
       // first save the message into the DB, once done - send over
-      Future
-        .sequence(Seq(
-          messageRepository.save(in),
-          messageRepository.updateInbox(userId, in),
-          messageRepository.updateInbox(in.to, in)
-        ))
+      messageRepository.save(in)
         .onComplete {
           case Failure(exception) => throw exception
           case Success(_) =>
@@ -68,6 +62,8 @@ class ClientActor(
               case s"g#${_}" => groupShardRegion ! ShardingEnvelope(in.chatId, OutgoingMessage(in))
               case _ => exchangeShardRegion ! ShardingEnvelope(in.to, OutgoingMessage(in))
             }
+            messageRepository.updateInbox(userId, in)
+            messageRepository.updateInbox(in.to, in)
         }(context.executionContext)
 
       this

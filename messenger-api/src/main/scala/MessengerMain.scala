@@ -1,6 +1,7 @@
 package org.chats
 
 import config.AppConfig
+import config.ServerSettings
 import service.ClientManagerActor
 
 import org.apache.pekko.actor.typed.ActorSystem
@@ -18,8 +19,7 @@ object MessengerMain {
     given system: ActorSystem[ClientManagerActor.Command] = app.system
     given executionContext: ExecutionContext = app.executionContext
 
-    val host = "localhost"
-    val port = sys.env.getOrElse("MESSENGER_PORT", "8081").toInt
+    val ServerSettings(host, port) = app.settings.server
     val binding = Http().newServerAt(host, port).bind(Api().handleWsRequest)
 
     StdIn.readLine() // let it run until user presses return

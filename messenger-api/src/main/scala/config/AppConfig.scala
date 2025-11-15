@@ -1,7 +1,7 @@
 package org.chats
 package config
 
-import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.config.{Config, ConfigFactory, ConfigValue}
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.cluster.sharding.typed.ShardingEnvelope
@@ -10,15 +10,18 @@ import org.apache.pekko.stream.connectors.cassandra.scaladsl.{CassandraSession, 
 import org.chats.repository.{MessageRepository, MessageRepositoryImpl}
 import org.chats.service.ClientManagerActor
 import org.chats.service.GroupExchange.MakeGroup
+import pureconfig.ConfigSource
 
+import scala.jdk.CollectionConverters.{MapHasAsJava, SetHasAsScala}
 import scala.concurrent.ExecutionContextExecutor
 
 /**
  * Main config of the application. This is a class to only initialize it in main function.
  * We could also rewrite it to a function or an object and use a local import. Not sure if its a lot better though.
  */
-class AppConfig(resourceName: String = "application.conf", overrides: Map[String, String] = Map()) {
-  private val config: Config = customizeConfigWithEnvironment(resourceName, overrides)
+class AppConfig(configResourceName: String = "application.conf", overrides: Map[String, _] = Map()) {
+  private val config: Config = initConfig(configResourceName, overrides)
+  val settings: Settings = ConfigSource.fromConfig(config).loadOrThrow[Settings]
   // This was ActorSystem[Any] in the Pekko Http docs, not sure if its okay to reuse this system for application's actors
   // or we need to build a new one. This somehow works for now.
   implicit val system: ActorSystem[ClientManagerActor.Command] = ActorSystem(
@@ -36,16 +39,16 @@ class AppConfig(resourceName: String = "application.conf", overrides: Map[String
 
   val cassandraSession: CassandraSession = CassandraSessionRegistry.get(system).sessionFor(CassandraSessionSettings())
   val messageRepository: MessageRepository = MessageRepositoryImpl(cassandraSession, system)
-
 }
 
-def customizeConfigWithEnvironment(resourceName: String, overrides: Map[String, String] = Map()): Config = {
-  val overridesStr = overrides.map((k, v) => s"$k=$v").mkString("\n")
-  val configTemplate =
-    s"""
-    pekko.remote.artery.canonical.port=${sys.env.getOrElse("CLUSTER_PORT", "7354")}
-    $overridesStr
-    """
+def initConfig(resourceName: String, overrides: Map[String, _] = Map()): Config = {
+  val defaultConfig = ConfigFactory.load(resourceName)
 
-  ConfigFactory.parseString(configTemplate).withFallback(ConfigFactory.load(resourceName))
+  val envMap = defaultConfig.entrySet().asScala.map { e =>
+    (e.getKey.replaceAll("\\.", "_").replaceAll("-", "").toUpperCase(), e.getKey)
+  }.toMap
+
+  val envOverrides = envMap.flatMap { case (envKey, configKey) => sys.env.get(envKey).map((configKey, _)) }
+
+  ConfigFactory.parseMap((envOverrides ++ overrides).asJava).withFallback(defaultConfig)
 }
