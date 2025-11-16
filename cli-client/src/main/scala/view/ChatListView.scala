@@ -44,7 +44,6 @@ class ChatListView extends BaseView {
   })
 
   searchBox.setInputFilter { (i, key) =>
-    println(key.toString)
     key.getKeyType match {
       case KeyType.Character =>
         charBuffer.append(key.getCharacter.charValue())

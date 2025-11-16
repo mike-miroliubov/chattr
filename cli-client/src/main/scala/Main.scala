@@ -15,11 +15,13 @@ import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.stream.KillSwitches
 import org.apache.pekko.stream.scaladsl.{Keep, Sink}
+import org.slf4j.LoggerFactory
 
 import java.util.UUID
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Using
 
+val logger = LoggerFactory.getLogger("Main")
 given system: ActorSystem[Any] = ActorSystem(Behaviors.empty, "my-system")
 given executionContext: ExecutionContext = system.executionContext
 
@@ -38,6 +40,7 @@ object Main {
 
 
   def main(args: Array[String]): Unit = {
+    logger.info("Starting")
     mainCommand.parse(args) match {
       case Left(help) if help.errors.isEmpty =>
         println(help)
