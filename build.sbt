@@ -3,6 +3,7 @@ import scala.collection.Seq
 ThisBuild / version := "0.1.0-SNAPSHOT"
 
 ThisBuild / scalaVersion := "3.3.5"
+ThisBuild / scalacOptions ++= Seq("-release", "21")
 
 lazy val root = (project in file("."))
   .aggregate(messenger)
@@ -81,8 +82,9 @@ lazy val chatsApi = project
   .settings(
     name := "chats-api",
     idePackagePrefix := Some("org.chats"),
+    assembly / logLevel := Level.Debug,
     libraryDependencies ++= commonDependencies ++ Seq(
-      "io.getquill" %% "quill-cassandra" % "4.8.6",
+      "io.getquill" %% "quill-cassandra" % "4.8.4",  // 4.8.6 is the latest, but it breaks the assembly plugin bcs of dependency differences
       "com.datastax.oss" % "java-driver-core" % "4.17.0",
       "com.github.pureconfig" %% "pureconfig-core" % "0.17.9"
     )
@@ -112,6 +114,13 @@ ThisBuild / assemblyMergeStrategy := {
   case PathList("module-info.class") => MergeStrategy.concat
   case PathList("META-INF", "versions", "9", "module-info.class") => MergeStrategy.concat
   case PathList("META-INF", "io.netty.versions.properties") => MergeStrategy.concat
+
+  // Quill merge exceptions
+  case PathList("io", "getquill", "util", "TraceConfig.class") => MergeStrategy.first
+  case PathList("io", "getquill", "context", _) => MergeStrategy.first
+  case PathList("io", "getquill", "util", "TraceConfig$.class") => MergeStrategy.first
+  case PathList("io", "getquill", "util", "TraceConfig.tasty") => MergeStrategy.first
+
   // Use default strategy for the rest of files
   case x =>
     val oldStrategy = (ThisBuild / assemblyMergeStrategy).value
