@@ -1,7 +1,7 @@
 package org.chats
 
 import config.AppConfig
-import config.ServerSettings
+import org.chats.settings.ServerSettings
 import service.ClientManagerActor
 
 import org.apache.pekko.actor.typed.ActorSystem

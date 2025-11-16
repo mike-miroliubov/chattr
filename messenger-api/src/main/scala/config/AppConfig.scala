@@ -10,6 +10,7 @@ import org.apache.pekko.stream.connectors.cassandra.scaladsl.{CassandraSession, 
 import org.chats.repository.{MessageRepository, MessageRepositoryImpl}
 import org.chats.service.ClientManagerActor
 import org.chats.service.GroupExchange.MakeGroup
+import org.chats.settings.initConfig
 import pureconfig.ConfigSource
 
 import scala.jdk.CollectionConverters.{MapHasAsJava, SetHasAsScala}
@@ -39,16 +40,4 @@ class AppConfig(configResourceName: String = "application.conf", overrides: Map[
 
   val cassandraSession: CassandraSession = CassandraSessionRegistry.get(system).sessionFor(CassandraSessionSettings())
   val messageRepository: MessageRepository = MessageRepositoryImpl(cassandraSession, system)
-}
-
-def initConfig(resourceName: String, overrides: Map[String, _] = Map()): Config = {
-  val defaultConfig = ConfigFactory.load(resourceName)
-
-  val envMap = defaultConfig.entrySet().asScala.map { e =>
-    (e.getKey.replaceAll("\\.", "_").replaceAll("-", "").toUpperCase(), e.getKey)
-  }.toMap
-
-  val envOverrides = envMap.flatMap { case (envKey, configKey) => sys.env.get(envKey).map((configKey, _)) }
-
-  ConfigFactory.parseMap((envOverrides ++ overrides).asJava).withFallback(defaultConfig)
 }

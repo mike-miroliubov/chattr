@@ -13,8 +13,10 @@ lazy val root = (project in file("."))
     idePackagePrefix := Some("org.chats"),
   )
 
+// dependency versions
 val pekkoVersion = "1.1.3"
 val pekkoHttpVersion = "1.1.0"
+
 val commonDependencies = Seq(
   "org.apache.pekko" %% "pekko-actor-typed" % pekkoVersion,
   "org.apache.pekko" %% "pekko-stream" % pekkoVersion,
@@ -29,8 +31,19 @@ val commonDependencies = Seq(
   "org.apache.pekko" %% "pekko-stream-testkit" % pekkoVersion % Test
 )
 
+lazy val commonServer = project
+  .in(file("common-server"))
+  .settings(
+    name := "common-server",
+    idePackagePrefix := Some("org.chats"),
+    libraryDependencies ++= Seq(
+      "com.typesafe" % "config" % "1.4.3"
+    )
+  )
+
 lazy val messenger = project
   .in(file("messenger-api"))
+  .dependsOn(commonServer)
   .settings(
     name := "messenger-api",
     idePackagePrefix := Some("org.chats"),
@@ -64,6 +77,7 @@ lazy val messenger = project
 
 lazy val chatsApi = project
   .in(file("chats-api"))
+  .dependsOn(commonServer)
   .settings(
     name := "chats-api",
     idePackagePrefix := Some("org.chats"),

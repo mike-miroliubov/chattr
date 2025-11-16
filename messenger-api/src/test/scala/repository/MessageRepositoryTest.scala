@@ -1,7 +1,6 @@
 package org.chats
 package repository
 
-import config.initConfig
 import model.ChattrMessage
 
 import com.dimafeng.testcontainers.CassandraContainer
@@ -10,6 +9,7 @@ import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.stream.connectors.cassandra.CassandraSessionSettings
 import org.apache.pekko.stream.connectors.cassandra.scaladsl.{CassandraSession, CassandraSessionRegistry}
+import org.chats.settings.initConfig
 import org.scalactic.Equality
 import org.scalatest.flatspec.AsyncFlatSpec
 import org.scalatest.matchers.should.Matchers.*

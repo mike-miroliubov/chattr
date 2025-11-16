@@ -5,6 +5,8 @@ import routes.Api
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.http.scaladsl.Http
+import org.chats.config.settings
+import org.chats.settings.ServerSettings
 
 import scala.concurrent.ExecutionContextExecutor
 import scala.io.StdIn
@@ -16,8 +18,7 @@ object Main {
     implicit val executionContext: ExecutionContextExecutor = system.executionContext
 
     println("Starting server")
-    val host = "localhost"
-    val port = 8080
+    val ServerSettings(host, port) = settings.server
     val binding = Http().newServerAt(host, port).bind(Api.routes)
 
     StdIn.readLine() // let it run until user presses return

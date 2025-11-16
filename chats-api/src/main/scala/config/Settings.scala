@@ -1,10 +1,12 @@
 package org.chats
 package config
 
-import pureconfig._
+import org.chats.settings.ServerSettings
+import pureconfig.*
 
 case class Settings(
-  cassandra: CassandraSettings
+  cassandra: CassandraSettings,
+  server: ServerSettings
 ) derives ConfigReader
 case class CassandraSettings(
   keyspace: String,
