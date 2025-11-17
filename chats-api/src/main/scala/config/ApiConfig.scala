@@ -1,21 +1,20 @@
 package org.chats
 package config
 
+import controller.ChatController
 import repository.{CassandraChatRepository, CassandraMessageRepository}
 import service.ChatServiceImpl
 
 import com.datastax.oss.driver.api.core.CqlSession
 import com.datastax.oss.driver.api.core.config.{DefaultDriverOption, DriverConfigLoader}
-import io.getquill.util.LoadConfig
 import io.getquill.{CassandraAsyncContext, SnakeCase}
-import org.chats.controller.ChatController
+import org.chats.settings.initConfig
 import pureconfig.ConfigSource
 
 import java.net.InetSocketAddress
 import scala.concurrent.ExecutionContext.Implicits.global
 
-val config = LoadConfig("ctx")
-val settings = ConfigSource.default.loadOrThrow[Settings]
+val settings = ConfigSource.fromConfig(initConfig("application.conf")).loadOrThrow[Settings]
 val cassandraContext: CassandraAsyncContext[SnakeCase] = buildCassandraConnection()
 
 val chatRepository = CassandraChatRepository(cassandraContext)

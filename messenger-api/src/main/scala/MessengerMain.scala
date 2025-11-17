@@ -1,14 +1,14 @@
 package org.chats
 
 import config.AppConfig
-import org.chats.settings.ServerSettings
 import service.ClientManagerActor
+import settings.ServerSettings
 
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.http.scaladsl.Http
 
-import scala.concurrent.ExecutionContext
-import scala.io.StdIn
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext}
 import scala.util.{Failure, Success}
 
 object MessengerMain {
@@ -22,16 +22,18 @@ object MessengerMain {
     val ServerSettings(host, port) = app.settings.server
     val binding = Http().newServerAt(host, port).bind(Api().handleWsRequest)
 
-    StdIn.readLine() // let it run until user presses return
+    sys.addShutdownHook {
+      binding
+        .flatMap(_.unbind()) // trigger unbinding from the port
+        .onComplete(r => {
+          r match {
+            case Failure(ex) => system.log.error("Failed to bind to {}:{}!", ex, host, port)
+            case Success(_) => {}
+          }
+          system.terminate()
+        }) // and shutdown when done
+    }
 
-    binding
-      .flatMap(_.unbind()) // trigger unbinding from the port
-      .onComplete(r => {
-        r match {
-          case Failure(ex) => system.log.error("Failed to bind to {}:{}!", ex, host, port)
-          case Success(_) => {}
-        }
-        system.terminate()
-      }) // and shutdown when done
+    Await.ready(system.whenTerminated, Duration.Inf)
   }
 }

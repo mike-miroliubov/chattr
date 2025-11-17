@@ -24,6 +24,6 @@ services:
       # username is cassandra, password is cassandra
     volumes:
       - ./data/cassandra:/bitnami
-      - ./init-db:/docker-entrypoint-initdb.d
+      - ../messenger-api/src/main/resources/migrations:/docker-entrypoint-initdb.d
     networks:
       - chattr-local
