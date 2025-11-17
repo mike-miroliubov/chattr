@@ -14,6 +14,20 @@ services:
     networks:
       - chattr-local
 
+  messenger-api:
+    image: messenger-api
+    depends_on:
+      - cassandra
+    environment:
+      DATASTAXJAVADRIVER_BASIC_CONTACTPOINTS: cassandra2:9042
+    expose:
+      - "8081"
+      - "7354"  # remote artery port
+    ports:
+      - "8081:8081"
+    networks:
+      - chattr-local
+
   cassandra:
     image: bitnami/cassandra:5.0.4
     container_name: cassandra2
@@ -49,7 +63,7 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
     depends_on:
       - chats-api
-      #- service2
+      - messenger-api
     networks:
       - chattr-local
 
