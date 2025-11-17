@@ -36,9 +36,14 @@ lazy val commonServer = project
   .in(file("common-server"))
   .settings(
     name := "common-server",
+    // enable unsafe features to modify env variables in tests
+    Test / fork := true,
+    Test / javaOptions += "--add-opens=java.base/java.util=ALL-UNNAMED",
+    //
     idePackagePrefix := Some("org.chats"),
     libraryDependencies ++= Seq(
-      "com.typesafe" % "config" % "1.4.3"
+      "com.typesafe" % "config" % "1.4.3",
+      "org.scalatest" %% "scalatest" % "3.2.17" % Test,
     )
   )
 
