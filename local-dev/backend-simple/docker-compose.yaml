@@ -40,18 +40,18 @@ services:
     networks:
       - chattr-local
 
-#  nginx:
-#    image: nginx:1.25
-#    container_name: nginx_gateway
-#    ports:
-#      - "80:80"
-#    volumes:
-#      - ./nginx/conf.d:/etc/nginx/conf.d:ro
-#    depends_on:
-#      - chats-api
-#      #- service2
-#    networks:
-#      - chattr-local
+  nginx:
+    image: nginx:1.25
+    container_name: nginx_gateway
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    depends_on:
+      - chats-api
+      #- service2
+    networks:
+      - chattr-local
 
 networks:
   chattr-local:
