@@ -4,18 +4,24 @@ package view
 import com.googlecode.lanterna.TerminalSize
 import com.googlecode.lanterna.gui2.*
 import com.googlecode.lanterna.input.{KeyStroke, KeyType}
-import org.chats.dto.InputMessageDto
+import org.apache.pekko.stream.KillSwitches
+import org.apache.pekko.stream.scaladsl.{Keep, Sink}
+import org.chats.dto.{InputMessageDto, Message, OutputMessageDto}
+import org.chats.service.MessengerClient
+
+import java.util.UUID
 
 class ChatView(
+  private val recipient: String,
   private val userName: String,
+  private val messengerClient: MessengerClient
 ) extends BaseView {
-  private val window = BasicWindow(s"Chat with $userName")
+  private val window = BasicWindow(s"Chat with $recipient")
   private val panel = Panel(BorderLayout())
   private val messageArea = TextBox(TerminalSize(40, 10), TextBox.Style.MULTI_LINE).setReadOnly(true)
   private val inputBox = new TextBox(TerminalSize(30, 1))
 
   var onWindowClosed: () => Unit = () => {}
-  var onMessageSent: String => Unit = _ => {}
 
   inputBox.setInputFilter { (i, key) =>
     key.getKeyType match
@@ -41,6 +47,24 @@ class ChatView(
 
   window.setComponent(panel)
 
+  private val chatId = recipient match {
+    case s"g#${_}" => recipient
+    case _ => Seq(userName, recipient).sorted.mkString("#")
+  }
+
+  messengerClient.getMessages(chatId).map(_.messages.foreach(displayMessage))
+
+  // Subscribe view to model changes
+  val (cancel, closed) = messengerClient.inputStream
+    .viaMat(KillSwitches.single)(Keep.right)
+    .toMat(Sink.foreach(displayMessage))(Keep.both)
+    .run()
+
+  messengerClient.closedStream.runForeach { _ =>
+    system.terminate()
+    sys.exit(1)
+  }
+
   override def render(gui: MultiWindowTextGUI): Unit = {
     inputBox.takeFocus()
     gui.addWindowAndWait(window)
@@ -51,10 +75,15 @@ class ChatView(
     messageArea.handleKeyStroke(KeyStroke(KeyType.End))
   }
 
+  def displayMessage(message: Message): Unit = {
+    messageArea.addLine(s"${message.from}: ${message.text}")
+    messageArea.handleKeyStroke(KeyStroke(KeyType.End))
+  }
+
   private def sendMessage(): Unit = {
     val text = inputBox.getText
     if (!text.isBlank) {
-      onMessageSent(text)
+      messengerClient.send(OutputMessageDto(UUID.randomUUID().toString, recipient, text))
       messageArea.addLine(s"You: $text")
       messageArea.handleKeyStroke(KeyStroke(KeyType.End))
       inputBox.setText("")
@@ -63,6 +92,7 @@ class ChatView(
 
   private def closeWindow(): Unit = {
     window.close()
+    cancel.shutdown()
     onWindowClosed()
   }
 }

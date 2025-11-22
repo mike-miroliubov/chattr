@@ -1,18 +1,21 @@
 package org.chats
 package view
 
-import com.googlecode.lanterna.{TerminalSize, TextColor}
-import com.googlecode.lanterna.graphics.{SimpleTheme, Theme}
+import dto.Chats
+
+import com.googlecode.lanterna.TerminalSize
 import com.googlecode.lanterna.gui2.*
-import com.googlecode.lanterna.gui2.table.{DefaultTableCellRenderer, Table, TableCellRenderer, TableModel}
+import com.googlecode.lanterna.gui2.table.{Table, TableModel}
 import com.googlecode.lanterna.input.KeyType
+
+import scala.collection.mutable
 
 class ChatListView extends BaseView {
   private val window = BasicWindow("Select chat")
   private val panel = Panel(LinearLayout(Direction.VERTICAL))
   private val searchBox = TextBox(TerminalSize(30, 1))
   private val chatsModel = TableModel[String]("user name", "message")
-  private val model = Seq(ChatRow("Alice", "hi"), ChatRow("Bob", "bye"))
+  private val model = mutable.Buffer(ChatRow("Alice", "hi"), ChatRow("Bob", "bye"))
   private val charBuffer = StringBuilder()
 
   var onChatSelect: String => Unit = _ => {}
@@ -65,6 +68,12 @@ class ChatListView extends BaseView {
 
   override def render(gui: MultiWindowTextGUI): Unit = {
     gui.addWindowAndWait(window)
+  }
+
+  def setChats(chats: Seq[ChatRow]): Unit = {
+    model.clear()
+    model ++= chats
+    filterRows(charBuffer.toString())
   }
 
   private def filterRows(prefix: String): Unit = {

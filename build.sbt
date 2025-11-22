@@ -97,12 +97,14 @@ lazy val chatsApi = project
 
 lazy val cliClient = project
     .in(file("cli-client"))
+    .dependsOn(commonServer)
     .settings(
       name := "cli-client",
       idePackagePrefix := Some("org.chats"),
       libraryDependencies ++= commonDependencies ++ Seq(
         "com.monovore" %% "decline" % "2.5.0",
-        "com.googlecode.lanterna" % "lanterna" % "3.1.3"
+        "com.googlecode.lanterna" % "lanterna" % "3.1.3",
+        "com.github.pureconfig" %% "pureconfig-core" % "0.17.9",
       ),
     )
 

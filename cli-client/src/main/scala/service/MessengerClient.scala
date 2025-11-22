@@ -1,23 +1,30 @@
 package org.chats
 package service
 
-import dto.{ConnectionClosed, InputMessageDto, OutputMessageDto, ServiceMessage, given}
+import dto.{ChatContent, Chats, ConnectionClosed, InputMessageDto, OutputMessageDto, ServiceMessage, given}
 
+import org.apache.pekko.http.scaladsl.marshallers.sprayjson.SprayJsonSupport.*
 import org.apache.pekko.actor.typed.ActorRef
 import org.apache.pekko.http.scaladsl.Http
-import org.apache.pekko.http.scaladsl.model.StatusCodes
+import org.apache.pekko.http.scaladsl.model.Uri.Query
+import org.apache.pekko.http.scaladsl.model.{HttpRequest, StatusCodes, Uri}
 import org.apache.pekko.http.scaladsl.model.ws.*
+import org.apache.pekko.http.scaladsl.unmarshalling.Unmarshal
 import org.apache.pekko.stream.scaladsl.{BroadcastHub, Flow, Keep, RestartFlow, Sink, Source}
 import org.apache.pekko.stream.typed.scaladsl.ActorSource
 import org.apache.pekko.stream.{OverflowStrategy, RestartSettings}
 import org.apache.pekko.{Done, NotUsed}
+import org.chats.config.ServerSettings
 import spray.json.*
 
+import java.net.URLEncoder
+import java.nio.charset.Charset
 import java.util.concurrent.TimeUnit
+import scala.concurrent.Future
 import scala.concurrent.duration.*
 import scala.util.{Failure, Success}
 
-class MessengerClient(userName: String, val host: String, val port: Int) {
+class MessengerClient(userName: String, val settings: ServerSettings) {
   // Broadcast hub will dynamically connect multiple subscriber sinks as needed
   private val hub = BroadcastHub.sink[InputMessageDto]
   private val (outputActor: ActorRef[OutputMessageDto | ServiceMessage], input, closed) = connect(userName)
@@ -87,7 +94,7 @@ class MessengerClient(userName: String, val host: String, val port: Int) {
 
     val webSocketFlow = RestartFlow.withBackoff(restartSettings) { () =>
       val (upgradeResponse, originalFlow) = Http()
-        .webSocketClientFlow(WebSocketRequest(s"ws://${host}:${port}/api/connect?userName=$userName"))
+        .webSocketClientFlow(WebSocketRequest(s"${settings.messengerApiUrl}/connect?userName=$userName"))
         .preMaterialize()
 
       // Because connection might be reattempted many times, we need a stream rather than a Future.
@@ -115,4 +122,14 @@ class MessengerClient(userName: String, val host: String, val port: Int) {
   def close(): Unit = {
     outputActor ! ConnectionClosed
   }
+
+  def getChats(): Future[Chats] = Http().singleRequest(
+      HttpRequest(uri = Uri(s"${settings.chatsApiUrl}/chats").withQuery(Query("user_id" -> userName)))
+    )
+    .flatMap { r => Unmarshal(r).to[Chats] }
+
+  def getMessages(chatId: String): Future[ChatContent] = Http().singleRequest(
+      HttpRequest(uri = Uri(s"${settings.chatsApiUrl}/chats/${URLEncoder.encode(chatId, "UTF-8")}"))
+    ) 
+    .flatMap( r => Unmarshal(r).to[ChatContent])
 }
