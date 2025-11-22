@@ -30,6 +30,7 @@ class MessageRepositoryImpl(
     (msg: ChattrMessage, stmt: PreparedStatement) => stmt.bind(
       msg.chatId,
       msg.messageId,
+      msg.clientMessageId,
       msg.fromUserId,
       msg.message,
       msg.sentAt.toInstant(ZoneOffset.UTC),
@@ -42,12 +43,13 @@ class MessageRepositoryImpl(
       INSERT INTO chattr.message(
         chat_id,
         message_id,
+        client_message_id,
         from_user_id,
         message,
         sent_at,
         received_at,
         delivered_at
-      ) VALUES (?,?,?,?,?,?,?)""", saveStatementBinder))
+      ) VALUES (?,?,?,?,?,?,?,?)""", saveStatementBinder))
 
   private val updateInboxStatementBinder =
     (inboxMsg: (String, ChattrMessage), stmt: PreparedStatement) => {
@@ -87,6 +89,7 @@ class MessageRepositoryImpl(
       .map(row => ChattrMessage(
         row.getString("chat_id"),
         row.getString("message_id"),
+        row.getString("client_message_id"),
         row.getString("from_user_id"),
         row.getString("message"),
         LocalDateTime.ofInstant(row.getInstant("sent_at"), ZoneOffset.UTC),
@@ -104,6 +107,7 @@ class MessageRepositoryImpl(
       .map(row => ChattrMessage(
         row.getString("chat_id"),
         row.getString("last_message_id"),
+        "",
         row.getString("last_message_from_user_id"),
         row.getString("last_message"),
         LocalDateTime.ofInstant(row.getInstant("last_message_sent_at"), ZoneOffset.UTC),

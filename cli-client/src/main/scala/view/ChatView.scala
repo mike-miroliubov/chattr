@@ -52,7 +52,11 @@ class ChatView(
     case _ => Seq(userName, recipient).sorted.mkString("#")
   }
 
-  messengerClient.getMessages(chatId).map(_.messages.foreach(displayMessage))
+  messengerClient.getMessages(chatId).map {
+    _.messages
+      .sortWith { (a, b) => a.id < b.id }
+      .foreach(displayMessage)
+  }
 
   // Subscribe view to model changes
   val (cancel, closed) = messengerClient.inputStream

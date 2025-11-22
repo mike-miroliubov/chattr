@@ -8,6 +8,7 @@ import java.time.LocalDateTime
 case class ChattrMessage(
   chatId: String,    // partition key 
   messageId: String, // sort key
+  clientMessageId: String,
   fromUserId: String,
   message: String,
   sentAt: LocalDateTime,

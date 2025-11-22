@@ -75,7 +75,7 @@ class ClientActor(
       replyTo ! Ack(out.chattrMessage.messageId)
       this
     case GreetingsMessage =>
-      outputActor ! OutgoingMessage(ChattrMessage("", "", "", "You joined the chat", LocalDateTime.now(), LocalDateTime.now()))
+      outputActor ! OutgoingMessage(ChattrMessage("", "", "", "", "You joined the chat", LocalDateTime.now(), LocalDateTime.now()))
       this
     case ConnectionClosed =>
       context.log.info("Client {} disconnected", userId)

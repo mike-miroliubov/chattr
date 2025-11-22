@@ -20,6 +20,7 @@ How do we count the messages?
 CREATE TABLE chattr.message (
   chat_id VARCHAR,
   message_id VARCHAR,
+  client_message_id VARCHAR,
   from_user_id VARCHAR,
   message TEXT,
   sent_at TIMESTAMP,

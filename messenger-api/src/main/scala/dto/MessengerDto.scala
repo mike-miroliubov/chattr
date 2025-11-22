@@ -1,10 +1,13 @@
 package org.chats
 package dto
 
+import com.fasterxml.uuid.Generators
 import org.chats.model.ChattrMessage
 import spray.json.{DefaultJsonProtocol, RootJsonFormat}
 
 import java.time.{LocalDateTime, ZoneOffset}
+
+val idGenerator = Generators.timeBasedEpochRandomGenerator()
 
 final case class InputMessageDto(id: String, to: String, text: String) {
   def toModel(from: String): ChattrMessage = {
@@ -15,6 +18,7 @@ final case class InputMessageDto(id: String, to: String, text: String) {
 
     ChattrMessage(
       chatId,
+      idGenerator.generate().toString,
       id,
       from,
       text,

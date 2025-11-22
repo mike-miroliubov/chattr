@@ -64,6 +64,7 @@ lazy val messenger = project
 
       // Misc
       "com.github.pureconfig" %% "pureconfig-core" % "0.17.9",
+      "com.fasterxml.uuid" % "java-uuid-generator" % "5.1.1",
 
       // Cassandra
       "org.apache.pekko" %% "pekko-persistence-cassandra" % "1.1.0",

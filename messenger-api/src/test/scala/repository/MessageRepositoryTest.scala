@@ -54,7 +54,7 @@ class MessageRepositoryTest extends AsyncFlatSpec {
 
   "Repository" should "save message" in {
     val repo = MessageRepositoryImpl(cassandraSession, testSystem)
-    val message = ChattrMessage("scala#world", UUID.randomUUID().toString, "scala", "hello",
+    val message = ChattrMessage("scala#world", UUID.randomUUID().toString, UUID.randomUUID().toString, "scala", "hello",
       LocalDateTime.now(ZoneOffset.UTC), LocalDateTime.now(ZoneOffset.UTC), None)  // Some(LocalDateTime.now(ZoneOffset.UTC))
 
     for {
@@ -68,7 +68,7 @@ class MessageRepositoryTest extends AsyncFlatSpec {
 
   "Repository" should "update inbox" in {
     val repo = MessageRepositoryImpl(cassandraSession, testSystem)
-    val message = ChattrMessage(s"scala#world", UUID.randomUUID().toString, "scala", "hello",
+    val message = ChattrMessage(s"scala#world", UUID.randomUUID().toString, "", "scala", "hello",
       LocalDateTime.now(ZoneOffset.UTC), LocalDateTime.now(ZoneOffset.UTC), Some(LocalDateTime.now(ZoneOffset.UTC)))
 
     for {
