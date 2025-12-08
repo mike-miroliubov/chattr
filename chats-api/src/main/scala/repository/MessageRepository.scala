@@ -6,5 +6,5 @@ import model.Message
 import scala.concurrent.Future
 
 trait MessageRepository {
-  def getChatMessages(chatId: String): Future[Seq[Message]]
+  def getChatMessages(chatId: String, pageSize: Int, seekFromMsgId: Option[String] = None): Future[Seq[Message]]
 }

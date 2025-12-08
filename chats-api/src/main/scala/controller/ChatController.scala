@@ -13,7 +13,7 @@ class ChatController(chatService: ChatService) {
     Chats(c.map(it => Chat(it.chatId, it.lastMessageFromUserId, it.lastMessage, it.lastMessageSentAt)))
   }
   
-  def getChatMessages(chatId: String): Future[ChatContent] = chatService.getChatMessages(chatId).map { messages =>
+  def getChatMessages(chatId: String, pageSize: Int, seekFromMsgId: Option[String] = None): Future[ChatContent] = chatService.getChatMessages(chatId, pageSize, seekFromMsgId).map { messages =>
     ChatContent(messages.map { it => Message(it.messageId, it.fromUserId, it.message, it.receivedAt.toInstant(ZoneOffset.UTC)) })
   }
 }

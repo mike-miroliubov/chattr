@@ -14,8 +14,8 @@ object ChatsApi extends Directives with SprayJsonSupport with ChattrJsonProtocol
       (pathEnd & get & parameter("user_id")) { userId =>
           complete(chatController.getChats(userId))
       },
-      (path(Segment) & get) { chatId =>
-        complete(chatController.getChatMessages(chatId))
+      (path(Segment) & get & parameters("seek_from".optional, "page_size".as[Int].withDefault(20))) { (chatId, seekFrom, pageSize) =>
+        complete(chatController.getChatMessages(chatId, pageSize, seekFrom))
       }
     )
   }
