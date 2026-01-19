@@ -109,6 +109,17 @@ lazy val cliClient = project
       ),
     )
 
+lazy val authApi = project
+  .in(file("auth-api"))
+  .settings(
+    name := "auth-api",
+    idePackagePrefix := Some("org.chats"),
+    libraryDependencies ++= Seq(
+        "dev.zio"  %% "zio-http" % "3.7.4",
+        "dev.zio" %% "zio" % "2.1.24"
+    )
+  )
+
 Test / parallelExecution := false
 
 // Customize the merge strategy to discard duplicated files and merge Pekko conf files
