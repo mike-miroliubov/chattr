@@ -11,8 +11,7 @@ val routes: Routes[LoginController, Nothing] = Routes(
   Method.POST / "login" -> Handler.fromFunctionHandler { (req: Request) =>
     val response = for {
       request <- req.body.asJsonFromCodec[LoginRequest].mapError(e => new IllegalArgumentException(e.getMessage, e))
-      controller <- ZIO.service[LoginController]
-      result <- controller.login(request)
+      result <- ZIO.serviceWithZIO[LoginController](_.login(request))
     } yield {
       Response.json(result.toJson)
     }

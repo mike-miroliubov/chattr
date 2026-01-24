@@ -90,24 +90,24 @@ lazy val chatsApi = project
     idePackagePrefix := Some("org.chats"),
     assembly / logLevel := Level.Debug,
     libraryDependencies ++= commonDependencies ++ Seq(
-      "io.getquill" %% "quill-cassandra" % "4.8.4",  // 4.8.6 is the latest, but it breaks the assembly plugin bcs of dependency differences
+      "io.getquill" %% "quill-cassandra" % "4.8.4", // 4.8.6 is the latest, but it breaks the assembly plugin bcs of dependency differences
       "com.datastax.oss" % "java-driver-core" % "4.17.0",
       "com.github.pureconfig" %% "pureconfig-core" % "0.17.9"
     )
   )
 
 lazy val cliClient = project
-    .in(file("cli-client"))
-    .dependsOn(commonServer)
-    .settings(
-      name := "cli-client",
-      idePackagePrefix := Some("org.chats"),
-      libraryDependencies ++= commonDependencies ++ Seq(
-        "com.monovore" %% "decline" % "2.5.0",
-        "com.googlecode.lanterna" % "lanterna" % "3.1.3",
-        "com.github.pureconfig" %% "pureconfig-core" % "0.17.9",
-      ),
-    )
+  .in(file("cli-client"))
+  .dependsOn(commonServer)
+  .settings(
+    name := "cli-client",
+    idePackagePrefix := Some("org.chats"),
+    libraryDependencies ++= commonDependencies ++ Seq(
+      "com.monovore" %% "decline" % "2.5.0",
+      "com.googlecode.lanterna" % "lanterna" % "3.1.3",
+      "com.github.pureconfig" %% "pureconfig-core" % "0.17.9",
+    ),
+  )
 
 lazy val authApi = project
   .in(file("auth-api"))
@@ -115,8 +115,15 @@ lazy val authApi = project
     name := "auth-api",
     idePackagePrefix := Some("org.chats"),
     libraryDependencies ++= Seq(
-        "dev.zio"  %% "zio-http" % "3.7.4",
-        "dev.zio" %% "zio" % "2.1.24"
+      "dev.zio" %% "zio-http" % "3.7.4",
+      "dev.zio" %% "zio" % "2.1.24",
+      "dev.zio" %% "zio-config" % "4.0.6",
+      "dev.zio" %% "zio-config-typesafe" % "4.0.6",
+      "dev.zio" %% "zio-config-magnolia" % "4.0.6",
+      "io.getquill" %% "quill-jdbc-zio" % "4.8.6",
+      "org.postgresql" % "postgresql" % "42.7.9",
+      "org.flywaydb" % "flyway-core" % "11.20.2",
+      "org.flywaydb" % "flyway-database-postgresql" % "11.20.2" % "runtime"
     )
   )
 
