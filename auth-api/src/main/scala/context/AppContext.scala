@@ -2,7 +2,6 @@ package org.chats
 package context
 
 import org.chats.config.{Settings, SettingsConfig}
-import org.chats.controller.{LoginController, LoginControllerImpl}
 import org.chats.service.{LoginService, LoginServiceImpl}
 import zio.{ZIO, ZLayer}
 import config.SettingsConfig.given
@@ -14,9 +13,7 @@ val userRepository = ZLayer.fromFunction(UserRepositoryImpl(_))
 val loginService: ZLayer[UserRepository, Nothing, LoginService] = ZLayer {
   ZIO.serviceWith[UserRepository](LoginServiceImpl(_))
 }
-val loginController: ZLayer[LoginService, Nothing, LoginController] = ZLayer {
-  ZIO.serviceWith[LoginService](service => LoginControllerImpl(service))
-}
+
 val dataSource = ZLayer {
   ZIO.config[Settings].map(s => {
     val config = new HikariConfig()

@@ -1,11 +1,21 @@
 package org.chats
+package controller
 
-import controller.{APIError, LoginController, LoginRequest, given}
 import exception.{AuthError, InternalError}
+import service.LoginService
 
 import zio.ZIO
 import zio.http.*
 import zio.json.*
+
+case class LoginRequest(username: String, password: String)
+given decoder: JsonDecoder[LoginRequest] = DeriveJsonDecoder.gen[LoginRequest]
+
+case class LoginResponse(sessionToken: String, accessToken: String)
+given encoder: JsonEncoder[LoginResponse] = DeriveJsonEncoder.gen
+
+case class APIError(message: String)
+given errorEncoder: JsonEncoder[APIError] = DeriveJsonEncoder.gen
 
 def errorHandler(message: String, status: Status) = {
   Handler.fromResponse {
@@ -15,13 +25,13 @@ def errorHandler(message: String, status: Status) = {
   }
 }
 
-val routes: Routes[LoginController, Nothing] = Routes(
+val authRoutes: Routes[LoginService, Nothing] = Routes(
   Method.POST / "login" -> Handler.fromFunctionHandler { (req: Request) =>
     val response = for {
       request <- req.body.asJsonFromCodec[LoginRequest].mapError(e => new IllegalArgumentException(e.getMessage, e))
-      result <- ZIO.serviceWithZIO[LoginController](_.login(request))
+      session <- ZIO.serviceWithZIO[LoginService](_.login(request.username, request.password))
     } yield {
-      Response.json(result.toJson)
+      Response.json(LoginResponse(session.token, "access").toJson)
     }
 
     Handler.fromZIO(response.tapDefect(e => ZIO.logCause(e))).catchAll {
