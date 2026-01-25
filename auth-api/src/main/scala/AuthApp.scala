@@ -2,12 +2,12 @@ package org.chats
 
 import config.Settings
 import config.SettingsConfig.given
-import context.{dataSource, loginService, userRepository}
+import context.{dataSource, loginService, registrationService, userRepository}
 import db.MigrationManager
 
 import io.getquill.SnakeCase
 import io.getquill.jdbczio.Quill
-import org.chats.controller.authRoutes
+import org.chats.controller.{authRoutes, registrationRoutes}
 import zio.http.Server
 import zio.{ZIO, ZIOAppDefault}
 
@@ -17,14 +17,14 @@ object AuthApp extends ZIOAppDefault {
       config <- ZIO.config[Settings].tap { s => ZIO.attempt(Console.println(s)) }
       _ <- MigrationManager(config.db).migrate()
       server <- Server
-        .serve(authRoutes)
+        .serve(authRoutes ++ registrationRoutes)
         .provide(
           Server.default,
           dataSource,
           Quill.Postgres.fromNamingStrategy(SnakeCase),
           userRepository,
-          //loginController,
-          loginService
+          loginService,
+          registrationService
         )
     } yield server
   }

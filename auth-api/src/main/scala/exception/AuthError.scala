@@ -9,7 +9,7 @@ object AuthError {
   def unapply(err: AuthError): Option[String] = Some(err.message)
 }
 
-class InternalError(val exception: Throwable, val message: String) extends AuthError {
+class InternalAuthError(val exception: Throwable, val message: String) extends AuthError {
   def this(exception: Throwable) = this(exception, exception.getMessage)
 }
 

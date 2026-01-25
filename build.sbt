@@ -124,7 +124,8 @@ lazy val authApi = project
       "org.postgresql" % "postgresql" % "42.7.9",
       "org.flywaydb" % "flyway-core" % "11.20.2",
       "org.flywaydb" % "flyway-database-postgresql" % "11.20.2" % "runtime",
-      "ch.qos.logback" % "logback-classic" % "1.5.25"
+      "ch.qos.logback" % "logback-classic" % "1.5.25",
+      "com.fasterxml.uuid" % "java-uuid-generator" % "5.1.1",
     )
   )
 

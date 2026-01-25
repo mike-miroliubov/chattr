@@ -1,7 +1,7 @@
 package org.chats
 package controller
 
-import exception.{AuthError, InternalError}
+import exception.{AuthError, InternalAuthError}
 import service.LoginService
 
 import zio.ZIO
@@ -36,7 +36,7 @@ val authRoutes: Routes[LoginService, Nothing] = Routes(
 
     Handler.fromZIO(response.tapDefect(e => ZIO.logCause(e))).catchAll {
       case _: IllegalArgumentException => errorHandler("Invalid request parameters", Status.BadRequest)
-      case _: InternalError => errorHandler("Internal error", Status.InternalServerError)
+      case _: InternalAuthError => errorHandler("Internal error", Status.InternalServerError)
       case AuthError(message) => errorHandler(message, Status.BadRequest)
     }
   }

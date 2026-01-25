@@ -1,7 +1,7 @@
 package org.chats
 package service
 
-import exception.{AuthError, InternalError, LoginFailure}
+import exception.{AuthError, InternalAuthError, LoginFailure}
 import model.{Session, User}
 
 import org.chats.repository.UserRepository
@@ -16,7 +16,7 @@ trait LoginService {
 class LoginServiceImpl(val userRepository: UserRepository) extends LoginService {
   def login(username: String, password: String): IO[AuthError, Session] = {
     userRepository.getUser(username, password)
-      .mapError(e => new InternalError(e))
+      .mapError(e => new InternalAuthError(e))
       .flatMap(
         {
           case Some(u) => ZIO.succeed(Session(
