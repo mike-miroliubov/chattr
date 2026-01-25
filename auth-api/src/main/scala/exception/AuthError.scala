@@ -1,12 +1,16 @@
 package org.chats
 package exception
 
-trait AuthError {
-  def message: String
+sealed trait AuthError {
+  val message: String
 }
 
-class InternalError(val exception: Throwable, val msg: String) extends AuthError {
-  override def message: String = msg
+object AuthError {
+  def unapply(err: AuthError): Option[String] = Some(err.message)
+}
 
+class InternalError(val exception: Throwable, val message: String) extends AuthError {
   def this(exception: Throwable) = this(exception, exception.getMessage)
 }
+
+case class LoginFailure(message: String) extends AuthError

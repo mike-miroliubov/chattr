@@ -11,6 +11,9 @@ given decoder: JsonDecoder[LoginRequest] = DeriveJsonDecoder.gen[LoginRequest]
 case class LoginResponse(sessionToken: String, accessToken: String)
 given encoder: JsonEncoder[LoginResponse] = DeriveJsonEncoder.gen
 
+case class APIError(message: String)
+given errorEncoder: JsonEncoder[APIError] = DeriveJsonEncoder.gen
+
 trait LoginController {
   def login(form: LoginRequest): IO[AuthError, LoginResponse]
 }

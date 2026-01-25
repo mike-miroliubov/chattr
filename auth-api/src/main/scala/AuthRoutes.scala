@@ -1,11 +1,19 @@
 package org.chats
 
-import controller.{LoginController, LoginRequest, given}
+import controller.{APIError, LoginController, LoginRequest, given}
 import exception.{AuthError, InternalError}
 
 import zio.ZIO
 import zio.http.*
 import zio.json.*
+
+def errorHandler(message: String, status: Status) = {
+  Handler.fromResponse {
+    Response
+      .json(APIError(message).toJson)
+      .status(status)
+  }
+}
 
 val routes: Routes[LoginController, Nothing] = Routes(
   Method.POST / "login" -> Handler.fromFunctionHandler { (req: Request) =>
@@ -16,10 +24,10 @@ val routes: Routes[LoginController, Nothing] = Routes(
       Response.json(result.toJson)
     }
 
-    Handler.fromZIO(response).catchAll {
-      case _: IllegalArgumentException => Handler.badRequest
-      case _: InternalError => Handler.internalServerError
-      case _: AuthError  => Handler.badRequest
+    Handler.fromZIO(response.tapDefect(e => ZIO.logCause(e))).catchAll {
+      case _: IllegalArgumentException => errorHandler("Invalid request parameters", Status.BadRequest)
+      case _: InternalError => errorHandler("Internal error", Status.InternalServerError)
+      case AuthError(message) => errorHandler(message, Status.BadRequest)
     }
   }
 )
