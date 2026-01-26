@@ -9,9 +9,11 @@ import io.getquill.SnakeCase
 import io.getquill.jdbczio.Quill
 import org.chats.controller.{authRoutes, registrationRoutes}
 import zio.http.Server
-import zio.{ZIO, ZIOAppDefault}
+import zio.{Runtime, ZIO, ZIOAppDefault}
 
 object AuthApp extends ZIOAppDefault {
+  override val bootstrap = Runtime.enableLoomBasedBlockingExecutor
+
   override def run: ZIO[Any, Throwable, Nothing] = {
     for {
       config <- ZIO.config[Settings].tap { s => ZIO.attempt(Console.println(s)) }
