@@ -38,6 +38,6 @@ val authRoutes: Routes[LoginService, Nothing] = Routes(
       case _: IllegalArgumentException => errorHandler("Invalid request parameters", Status.BadRequest)
       case _: InternalAuthError => errorHandler("Internal error", Status.InternalServerError)
       case AuthError(message) => errorHandler(message, Status.BadRequest)
-    }
+    }.catchAllDefect(_ => errorHandler("Internal error", Status.InternalServerError))
   }
 )
