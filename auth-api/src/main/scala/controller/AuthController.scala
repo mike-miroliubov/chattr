@@ -9,10 +9,10 @@ import zio.http.*
 import zio.json.*
 
 case class LoginRequest(username: String, password: String)
-given decoder: JsonDecoder[LoginRequest] = DeriveJsonDecoder.gen[LoginRequest]
+private given decoder: JsonDecoder[LoginRequest] = DeriveJsonDecoder.gen[LoginRequest]
 
 case class LoginResponse(sessionToken: String, accessToken: String)
-given encoder: JsonEncoder[LoginResponse] = DeriveJsonEncoder.gen
+private given encoder: JsonEncoder[LoginResponse] = DeriveJsonEncoder.gen
 
 case class APIError(message: String)
 given errorEncoder: JsonEncoder[APIError] = DeriveJsonEncoder.gen

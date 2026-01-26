@@ -8,10 +8,10 @@ import zio.http.*
 import zio.json.*
 
 case class RegistrationRequest(username: String, password: String)
-given decoder: JsonDecoder[RegistrationRequest] = DeriveJsonDecoder.gen
+private given decoder: JsonDecoder[RegistrationRequest] = DeriveJsonDecoder.gen
 
 case class RegistrationResponse(username: String)
-given encoder: JsonEncoder[RegistrationResponse] = DeriveJsonEncoder.gen
+private given encoder: JsonEncoder[RegistrationResponse] = DeriveJsonEncoder.gen
 
 val registrationRoutes: Routes[RegistrationService, Nothing] = Routes(
   Method.POST / "register" -> Handler.fromFunctionHandler { (req: Request) =>

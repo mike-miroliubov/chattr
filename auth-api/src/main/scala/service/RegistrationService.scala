@@ -9,7 +9,7 @@ import org.chats.model.User
 import zio.{IO, ZIO}
 
 import java.security.SecureRandom
-import java.time.{Clock, Instant, LocalDateTime, ZoneOffset}
+import java.time.{Clock, Instant, LocalDateTime, ZoneOffset, ZonedDateTime}
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 
@@ -23,8 +23,7 @@ class RegistrationService(private val userRepository: UserRepository) {
     val salt = makeSalt()
     val hashedPassword = hashPassword(password, salt)
 
-    val user = User(idGenerator.generate().toString, username, salt ++ hashedPassword, Instant.now(Clock.systemUTC())) // LocalDateTime.now(ZoneOffset.UTC)
-    ZIO.log(s"salt = ${salt.mkString(",")}, hash = ${hashedPassword.mkString(",")}, fullHash = ${user.password.mkString(",")}") *>
+    val user = User(idGenerator.generate().toString, username, salt ++ hashedPassword, Instant.now(Clock.systemDefaultZone()))
     userRepository.create(user).mapBoth(e => InternalAuthError(e), _ => user)
   }
 }

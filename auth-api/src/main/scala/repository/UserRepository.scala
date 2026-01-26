@@ -1,16 +1,12 @@
 package org.chats
 package repository
 
-import java.time.{Instant, LocalDateTime, ZoneOffset}
+import model.User
 import io.getquill.*
 import io.getquill.jdbczio.Quill
-import org.chats.model.User
 import zio.ZIO
 
 import java.sql.SQLException
-
-given localDateTimeDecoder: MappedEncoding[Instant, LocalDateTime] = MappedEncoding[Instant, LocalDateTime](LocalDateTime.ofInstant(_, ZoneOffset.UTC))
-given localDateTimeEncoder: MappedEncoding[LocalDateTime, Instant] = MappedEncoding[LocalDateTime, Instant](_.toInstant(ZoneOffset.UTC))
 
 trait UserRepository {
   def getUser(username: String): ZIO[Any, Nothing, Option[User]]
@@ -18,7 +14,7 @@ trait UserRepository {
 }
 
 class UserRepositoryImpl(quill: Quill.Postgres[SnakeCase]) extends UserRepository {
-  import quill._
+  import quill.*
 
   def getUser(username: String): ZIO[Any, Nothing, Option[User]] = {
     run(quote { querySchema[User]("chat_user")
