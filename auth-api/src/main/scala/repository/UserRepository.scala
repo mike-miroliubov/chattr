@@ -18,7 +18,7 @@ class UserRepositoryImpl(quill: Quill.Postgres[SnakeCase]) extends UserRepositor
 
   def getUser(username: String): ZIO[Any, Nothing, Option[User]] = {
     run(quote { querySchema[User]("chat_user")
-      .filter(_.username == lift(username)).take(1) })
+      .withFilter(_.username == lift(username)).take(1) })
       .map(_.headOption).orDie
   }
 

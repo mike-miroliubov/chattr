@@ -126,6 +126,13 @@ lazy val authApi = project
       "org.flywaydb" % "flyway-database-postgresql" % "11.20.2" % "runtime",
       "ch.qos.logback" % "logback-classic" % "1.5.25",
       "com.fasterxml.uuid" % "java-uuid-generator" % "5.1.1",
+
+      "org.mockito" % "mockito-core" % "5.21.0" % Test,
+      "org.scalatestplus" %% "mockito-5-18" % "3.2.19.0" % Test,
+      "dev.zio" %% "zio-test" % "2.1.24" % Test,
+      "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test,
+      "dev.zio" %% "zio-test-magnolia" % "2.1.24" % Test,
+      "dev.zio" %% "zio-http-testkit" % "3.8.1" % Test
     )
   )
 
