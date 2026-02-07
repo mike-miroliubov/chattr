@@ -18,8 +18,10 @@ val registrationService: ZLayer[UserRepository, Nothing, RegistrationService] = 
   ZIO.serviceWith[UserRepository](RegistrationService(_))
 }
 
+val settings = ZLayer { ZIO.config[Settings] }
+
 val dataSource = ZLayer {
-  ZIO.config[Settings].map(s => {
+  ZIO.serviceWith[Settings] { s =>
     val config = new HikariConfig()
     config.setSchema(s.db.schema)
     config.setJdbcUrl(s.db.url)
@@ -29,5 +31,5 @@ val dataSource = ZLayer {
     // TODO: configure connection pool settings
 
     HikariDataSource(config)
-  })
+  }
 }

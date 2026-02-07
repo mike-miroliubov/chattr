@@ -1,53 +1,90 @@
 package org.chats
 package controller
 
-import model.{Session, User}
+import config.{DBSettings, Settings}
+import context.{dataSource, loginService, registrationService, userRepository}
+import db.MigrationManager
 import service.{LoginService, RegistrationService}
 
-import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.when
-import org.scalatestplus.mockito.MockitoSugar.mock
+import com.dimafeng.testcontainers.PostgreSQLContainer
+import com.zaxxer.hikari.HikariDataSource
+import io.getquill.SnakeCase
+import io.getquill.jdbczio.Quill
 import zio.*
 import zio.http.*
 import zio.test.*
 
-import java.time.Instant
+import javax.sql.DataSource
 
 object AuthControllerIT extends ZIOSpecDefault {
-  val mockLoginService = ZLayer[Any, Nothing, LoginService] {
-    ZIO.succeed(mock[LoginService])
+
+  val containerLayer = ZLayer.scoped {
+    ZIO.acquireRelease(ZIO.attemptBlocking {
+      val c = new PostgreSQLContainer()
+      c.start()
+      c
+    })(c => ZIO.attemptBlocking(c.stop()).orDie)
   }
 
-  val mockRegistrationService = ZLayer[Any, Nothing, RegistrationService] {
-    ZIO.succeed(mock[RegistrationService])
+  val settingsLayer = ZLayer {
+    ZIO.serviceWith[PostgreSQLContainer](c => Settings(DBSettings(
+      url = c.jdbcUrl,
+      username = c.username,
+      password = c.password,
+      schema = "auth"
+    )))
+  }
+
+  val migrationLayer = ZLayer {
+    for {
+      s <- ZIO.service[Settings]
+      _ <- MigrationManager(s.db).migrate().orDie
+    } yield ()
   }
 
   override def spec = suite("AuthControllerIT") {
-    test("should login with valid username and password") {
+    test("should register and then login with valid username and password") {
       for {
         client <- ZIO.service[Client]
         port <- ZIO.serviceWithZIO[Server](_.port)
 
-        testRequest = Request
-          .get(url = URL.root.port(port))
-          .addHeaders(Headers(Header.Accept(MediaType.application.json)))
+        baseUrl = URL.root.port(port)
 
         _ <- TestServer.addRoutes(authRoutes ++ registrationRoutes)
-        _ <- ZIO.serviceWith[LoginService] { mock =>
-          when(mock.login(any(), any())).thenReturn(ZIO.succeed(Session("", "token", User("", "", Array(), Instant.now()))))
-        }
 
-        loginResponse <- client.batched(Request.post(testRequest.url / "login", Body.fromString("{\"username\": \"kite\",\"password\": \"foo\"}")))
+        // 1. Register
+        registerResponse <- client.batched(
+          Request.post(
+            baseUrl / "register",
+            Body.fromString("{\"username\": \"kite\",\"password\": \"foo\"}")
+          )
+        )
+
+        // 2. Login
+        loginResponse <- client.batched(
+          Request.post(
+            baseUrl / "login",
+            Body.fromString("{\"username\": \"kite\",\"password\": \"foo\"}")
+          )
+        )
         loginResponseBody <- loginResponse.body.asString
       } yield {
+        assertTrue(registerResponse.status == Status.Ok)
         assertTrue(loginResponse.status == Status.Ok)
-        assertTrue(loginResponseBody == "{\"sessionToken\":\"token\",\"accessToken\":\"access\"}")
+        assertTrue(loginResponseBody.contains("sessionToken"))
+        assertTrue(loginResponseBody.contains("accessToken"))
       }
     }
   }.provide(
     TestServer.default,
     Client.default,
-    mockLoginService,
-    mockRegistrationService
+    containerLayer,
+    settingsLayer,
+    dataSource,
+    migrationLayer,
+    Quill.Postgres.fromNamingStrategy(SnakeCase),
+    userRepository,
+    loginService,
+    registrationService
   )
 }

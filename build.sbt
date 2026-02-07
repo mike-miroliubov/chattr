@@ -132,7 +132,8 @@ lazy val authApi = project
       "dev.zio" %% "zio-test" % "2.1.24" % Test,
       "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test,
       "dev.zio" %% "zio-test-magnolia" % "2.1.24" % Test,
-      "dev.zio" %% "zio-http-testkit" % "3.8.1" % Test
+      "dev.zio" %% "zio-http-testkit" % "3.8.1" % Test,
+      "com.dimafeng" %% "testcontainers-scala-postgresql" % "0.43.0" % Test
     )
   )
 

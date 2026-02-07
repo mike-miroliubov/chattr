@@ -2,7 +2,7 @@ package org.chats
 
 import config.Settings
 import config.SettingsConfig.given
-import context.{dataSource, loginService, registrationService, userRepository}
+import context.{dataSource, loginService, registrationService, settings, userRepository}
 import db.MigrationManager
 
 import io.getquill.SnakeCase
@@ -25,6 +25,7 @@ object AuthApp extends ZIOAppDefault {
           dataSource,
           Quill.Postgres.fromNamingStrategy(SnakeCase),
           userRepository,
+          settings,
           loginService,
           registrationService
         )
