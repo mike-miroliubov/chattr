@@ -2,6 +2,7 @@ package org.chats
 
 import config.AppConfig
 import dto.{InputMessageDto, MessengerJsonProtocol}
+import util.message.*
 
 import com.dimafeng.testcontainers.CassandraContainer
 import com.typesafe.config.ConfigFactory
@@ -12,13 +13,14 @@ import org.apache.pekko.http.scaladsl.model.ws.{TextMessage, WebSocketRequest}
 import org.apache.pekko.stream.scaladsl.{Flow, Keep, Sink, Source}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AsyncFlatSpec
+import org.scalatest.matchers.should.Matchers
 import spray.json.*
 
 import scala.concurrent.duration.*
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.jdk.CollectionConverters.given
 
-class ApiIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with MessengerJsonProtocol {
+class ApiIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with MessengerJsonProtocol with Matchers {
   private val containerDef = CassandraContainer.Def(initScript = Some("migrations/messages.cql"))
   private val container = containerDef.createContainer()
   container.start()
@@ -49,14 +51,18 @@ class ApiIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with Messe
         val (client1In, client1Out) = clientSource1
           .map { input => TextMessage(input.toJson.toString) }
           .viaMat(clientFlow1)(Keep.left)
-          .map { _.asTextMessage.getStrictText }
+          .map {
+            _.asTextMessage.getStrictText
+          }
           .toMat(clientSink1)(Keep.both)
           .run()
 
         // Client 2 connects
         val client2Out = client2Source.map { input => TextMessage(input) }
           .via(clientFlow2)
-          .map { _.asTextMessage.getStrictText }
+          .map {
+            _.asTextMessage.getStrictText
+          }
           .toMat(clientSink2)(Keep.right)
           .run()
 
@@ -69,17 +75,16 @@ class ApiIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with Messe
         // then
         for {f1 <- client1Out; f2 <- client2Out} yield (f1, f2)
       }
+      .map { case (client1Out, client2Out) => (client1Out.map(_.parseJson.asJsObject), client2Out.map(_.parseJson.asJsObject)) }
       .map { case (client1Out, client2Out) =>
-        assert(client1Out == Seq(
-          """{"from":"","id":"","text":"You joined the chat"}"""
-        ))
+        client1Out should contain only welcomeMessage
 
-        assert(client2Out.toSet == Set(
-          """{"from":"","id":"","text":"You joined the chat"}""",
-          """{"from":"foo","id":"1","text":"hi"}""",
-          """{"from":"foo","id":"2","text":"hey"}""",
-          """{"from":"foo","id":"3","text":"yo"}"""
-        ))
+        client2Out should contain theSameElementsAs Seq(
+          welcomeMessage,
+          messageJson(chatId = "bar#foo", from = "foo", id = "1", text = "hi"),
+          messageJson(chatId = "bar#foo", from = "foo", id = "2", text = "hey"),
+          messageJson(chatId = "bar#foo", from = "foo", id = "3", text = "yo"),
+        )
       }
   }
 

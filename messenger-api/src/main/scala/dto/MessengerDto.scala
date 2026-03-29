@@ -28,13 +28,13 @@ final case class InputMessageDto(id: String, to: String, text: String) {
   }
 }
 
-final case class OutputMessageDto(id: String, from: String, text: String)
+final case class OutputMessageDto(id: String, from: String, text: String, chatId: String)
 
 object OutputMessageDto {
-  def apply(model: ChattrMessage): OutputMessageDto = OutputMessageDto(model.messageId, model.fromUserId, model.message)
+  def apply(model: ChattrMessage): OutputMessageDto = OutputMessageDto(model.messageId, model.fromUserId, model.message, model.chatId)
 }
 
 trait MessengerJsonProtocol extends DefaultJsonProtocol {
   implicit val inputMessageFormat: RootJsonFormat[InputMessageDto] = jsonFormat3(InputMessageDto.apply)
-  implicit val outputMessageFormat: RootJsonFormat[OutputMessageDto] = jsonFormat3(OutputMessageDto.apply)
+  implicit val outputMessageFormat: RootJsonFormat[OutputMessageDto] = jsonFormat4(OutputMessageDto.apply)
 }
