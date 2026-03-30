@@ -90,24 +90,52 @@ lazy val chatsApi = project
     idePackagePrefix := Some("org.chats"),
     assembly / logLevel := Level.Debug,
     libraryDependencies ++= commonDependencies ++ Seq(
-      "io.getquill" %% "quill-cassandra" % "4.8.4",  // 4.8.6 is the latest, but it breaks the assembly plugin bcs of dependency differences
+      "io.getquill" %% "quill-cassandra" % "4.8.4", // 4.8.6 is the latest, but it breaks the assembly plugin bcs of dependency differences
       "com.datastax.oss" % "java-driver-core" % "4.17.0",
       "com.github.pureconfig" %% "pureconfig-core" % "0.17.9"
     )
   )
 
 lazy val cliClient = project
-    .in(file("cli-client"))
-    .dependsOn(commonServer)
-    .settings(
-      name := "cli-client",
-      idePackagePrefix := Some("org.chats"),
-      libraryDependencies ++= commonDependencies ++ Seq(
-        "com.monovore" %% "decline" % "2.5.0",
-        "com.googlecode.lanterna" % "lanterna" % "3.1.3",
-        "com.github.pureconfig" %% "pureconfig-core" % "0.17.9",
-      ),
+  .in(file("cli-client"))
+  .dependsOn(commonServer)
+  .settings(
+    name := "cli-client",
+    idePackagePrefix := Some("org.chats"),
+    libraryDependencies ++= commonDependencies ++ Seq(
+      "com.monovore" %% "decline" % "2.5.0",
+      "com.googlecode.lanterna" % "lanterna" % "3.1.3",
+      "com.github.pureconfig" %% "pureconfig-core" % "0.17.9",
+    ),
+  )
+
+lazy val authApi = project
+  .in(file("auth-api"))
+  .settings(
+    name := "auth-api",
+    idePackagePrefix := Some("org.chats"),
+    libraryDependencies ++= Seq(
+      "dev.zio" %% "zio-http" % "3.7.4",
+      "dev.zio" %% "zio" % "2.1.24",
+      "dev.zio" %% "zio-config" % "4.0.6",
+      "dev.zio" %% "zio-config-typesafe" % "4.0.6",
+      "dev.zio" %% "zio-config-magnolia" % "4.0.6",
+      "io.getquill" %% "quill-jdbc-zio" % "4.8.6",
+      "org.postgresql" % "postgresql" % "42.7.9",
+      "org.flywaydb" % "flyway-core" % "11.20.2",
+      "org.flywaydb" % "flyway-database-postgresql" % "11.20.2" % "runtime",
+      "ch.qos.logback" % "logback-classic" % "1.5.25",
+      "com.fasterxml.uuid" % "java-uuid-generator" % "5.1.1",
+
+      "org.mockito" % "mockito-core" % "5.21.0" % Test,
+      "org.scalatestplus" %% "mockito-5-18" % "3.2.19.0" % Test,
+      "dev.zio" %% "zio-test" % "2.1.24" % Test,
+      "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test,
+      "dev.zio" %% "zio-test-magnolia" % "2.1.24" % Test,
+      "dev.zio" %% "zio-http-testkit" % "3.8.1" % Test,
+      "com.dimafeng" %% "testcontainers-scala-postgresql" % "0.43.0" % Test
     )
+  )
 
 Test / parallelExecution := false
 

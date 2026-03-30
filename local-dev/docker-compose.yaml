@@ -27,3 +27,17 @@ services:
       - ../messenger-api/src/main/resources/migrations:/docker-entrypoint-initdb.d
     networks:
       - chattr-local
+
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: chattr
+      POSTGRES_USER: chattr
+      POSTGRES_PASSWORD: chattr
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    networks:
+      - chattr-local
