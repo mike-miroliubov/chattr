@@ -24,7 +24,7 @@ class RegistrationService(private val userRepository: UserRepository) {
     val hashedPassword = hashPassword(password, salt)
 
     val user = User(idGenerator.generate().toString, username, salt ++ hashedPassword, Instant.now(Clock.systemDefaultZone()))
-    userRepository.create(user).mapBoth(e => InternalAuthError(e), _ => user)
+    userRepository.create(user).as(user)
   }
 }
 

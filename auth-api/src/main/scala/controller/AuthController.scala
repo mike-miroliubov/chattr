@@ -18,9 +18,9 @@ val authRoutes: Routes[LoginService, Nothing] = Routes(
   Method.POST / "login" -> handle { (req: Request) =>
     val response = for {
       request <- req.body.asJsonFromCodec[LoginRequest].mapError(e => new IllegalArgumentException(e.getMessage, e))
-      session <- ZIO.serviceWithZIO[LoginService](_.login(request.username, request.password))
+      sessionToken <- ZIO.serviceWithZIO[LoginService](_.login(request.username, request.password))
     } yield {
-      Response.json(LoginResponse(session.token, "access").toJson)
+      Response.json(LoginResponse(sessionToken, "access").toJson)
     }
 
     response.catchSome {

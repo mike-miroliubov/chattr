@@ -2,7 +2,7 @@ package org.chats
 package context
 
 import org.chats.config.{Settings, SettingsConfig}
-import org.chats.service.{LoginService, LoginServiceImpl, RegistrationService}
+import org.chats.service.{LoginService, LoginServiceImpl, RegistrationService, SessionService, SessionServiceImpl}
 import zio.{ZIO, ZLayer}
 import config.SettingsConfig.given
 
@@ -10,9 +10,14 @@ import com.zaxxer.hikari.{HikariConfig, HikariDataSource}
 import org.chats.repository.{UserRepository, UserRepositoryImpl}
 
 val userRepository = ZLayer.fromFunction(UserRepositoryImpl(_))
-val loginService: ZLayer[UserRepository, Nothing, LoginService] = ZLayer {
-  ZIO.serviceWith[UserRepository](LoginServiceImpl(_))
-}
+val sessionService = ZLayer.succeed(SessionServiceImpl())
+
+val loginService: ZLayer[UserRepository & SessionService, Nothing, LoginService] = ZLayer {
+    for {
+      repo <- ZIO.service[UserRepository]
+      sessionService <- ZIO.service[SessionService]
+    } yield LoginServiceImpl(repo, sessionService)
+  }
 
 val registrationService: ZLayer[UserRepository, Nothing, RegistrationService] = ZLayer {
   ZIO.serviceWith[UserRepository](RegistrationService(_))

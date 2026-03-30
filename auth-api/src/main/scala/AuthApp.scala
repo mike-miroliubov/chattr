@@ -2,7 +2,7 @@ package org.chats
 
 import config.Settings
 import config.SettingsConfig.given
-import context.{dataSource, loginService, registrationService, settings, userRepository}
+import context.{dataSource, loginService, registrationService, sessionService, settings, userRepository}
 import db.MigrationManager
 
 import io.getquill.SnakeCase
@@ -27,7 +27,8 @@ object AuthApp extends ZIOAppDefault {
           userRepository,
           settings,
           loginService,
-          registrationService
+          registrationService,
+          sessionService
         )
     } yield server
   }

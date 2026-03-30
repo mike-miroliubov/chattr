@@ -2,7 +2,7 @@ package org.chats
 package controller
 
 import config.{DBSettings, Settings}
-import context.{dataSource, loginService, registrationService, userRepository}
+import context.{dataSource, loginService, registrationService, sessionService, userRepository}
 import db.MigrationManager
 import service.{LoginService, RegistrationService}
 
@@ -85,6 +85,7 @@ object AuthControllerIT extends ZIOSpecDefault {
     Quill.Postgres.fromNamingStrategy(SnakeCase),
     userRepository,
     loginService,
-    registrationService
+    registrationService,
+    sessionService
   )
 }

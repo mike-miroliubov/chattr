@@ -7,23 +7,16 @@ import repository.UserRepository
 
 import zio.{IO, ZIO}
 
-import java.util.UUID
-
 trait LoginService {
-  def login(username: String, password: String): IO[AuthError, Session]
+  def login(username: String, password: String): IO[AuthError, String]
 }
 
-class LoginServiceImpl(val userRepository: UserRepository) extends LoginService {
-  def login(username: String, password: String): IO[AuthError, Session] = {
+class LoginServiceImpl(val userRepository: UserRepository, val sessionService: SessionService) extends LoginService {
+  def login(username: String, password: String): IO[AuthError, String] = {
     userRepository.getUser(username)
       .flatMap(
         {
-          case Some(u) if passwordMatches(password, u.password) =>
-            ZIO.succeed(Session(
-              id = UUID.randomUUID().toString,
-              token = "foo",
-              user = u
-            ))
+          case Some(u) if passwordMatches(password, u.password) => sessionService.createSession(u).map(_._2)
           case _ => ZIO.fail(LoginFailure("Incorrect username or password"))
         }
       )

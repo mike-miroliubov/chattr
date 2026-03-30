@@ -10,7 +10,7 @@ import java.sql.SQLException
 
 trait UserRepository {
   def getUser(username: String): ZIO[Any, Nothing, Option[User]]
-  def create(user: User): ZIO[Any, SQLException, _]
+  def create(user: User): ZIO[Any, Nothing, _]
 }
 
 class UserRepositoryImpl(quill: Quill.Postgres[SnakeCase]) extends UserRepository {
