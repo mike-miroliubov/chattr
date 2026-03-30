@@ -14,8 +14,10 @@ import org.apache.pekko.http.scaladsl.model.ws.{Message, TextMessage, WebSocketR
 import org.apache.pekko.stream.scaladsl.{Flow, Keep, Sink, Source}
 import org.chats.model.ChattrMessage
 import org.chats.repository.MessageRepository
+import org.chats.util.message.*
 import org.scalatest.{BeforeAndAfterAll, Tag}
 import org.scalatest.flatspec.AsyncFlatSpec
+import org.scalatest.matchers.should.Matchers
 import spray.json.*
 
 import java.net.ServerSocket
@@ -27,7 +29,7 @@ import scala.util.Using
 
 object MultiNode extends Tag("org,chats.tags.MultiNode")
 
-class MultiNodeIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with MessengerJsonProtocol {
+class MultiNodeIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with MessengerJsonProtocol with Matchers {
   private val seedNodePort = findFreePort()
   private val config1 = NodeConfig(seedNodePort)
   private val server = Http()(using config1.system).newServerAt("localhost", 0)
@@ -81,17 +83,17 @@ class MultiNodeIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with
         case Seq(c1, c2) => (c1, c2, client1In, client2In)
       }
     }
+    .map { case (c1, c2, client1In, client2In) => (c1.map(_.parseJson.asJsObject), c2.map(_.parseJson.asJsObject), client1In, client2In)}
     .map { case (c1, c2, client1In, client2In) =>
-      assert(c1 == Seq(
-        """{"from":"","id":"","text":"You joined the chat"}"""
-      ))
+      c1 should contain only welcomeMessage
 
-      assert(c2.toSet == Set(
-        """{"from":"","id":"","text":"You joined the chat"}""",
-        """{"from":"foo","id":"1","text":"hi"}""",
-        """{"from":"foo","id":"2","text":"hey"}""",
-        """{"from":"foo","id":"3","text":"yo"}"""
-      ))
+      c2 should contain theSameElementsAs Seq(
+        welcomeMessage,
+        messageJson(chatId = "bar#foo", from = "foo", id = "1", text = "hi"),
+        messageJson(chatId = "bar#foo", from = "foo", id = "2", text = "hey"),
+        messageJson(chatId = "bar#foo", from = "foo", id = "3", text = "yo"),
+      )
+
       client1In.complete()
       client2In.complete()
 
@@ -159,39 +161,39 @@ class MultiNodeIntegrationTest extends AsyncFlatSpec with BeforeAndAfterAll with
       // then
 
       for {
-        c1 <- client1Out
-        c2 <- client2Out
-        c3 <- client3Out
+        c1 <- client1Out.map(_.map(_.parseJson.asJsObject))
+        c2 <- client2Out.map(_.map(_.parseJson.asJsObject))
+        c3 <- client3Out.map(_.map(_.parseJson.asJsObject))
       } yield {
-        assert(c1.toSet == Set( // messages can come out of order
-          """{"from":"","id":"","text":"You joined the chat"}""",
-          """{"from":"user2","id":"2-1","text":"hey!"}""",
-          """{"from":"user2","id":"2-2","text":"ho!"}""",
-          """{"from":"user2","id":"2-3","text":"lets go!"}""",
-          """{"from":"user3","id":"3-1","text":"hey!"}""",
-          """{"from":"user3","id":"3-2","text":"ho!"}""",
-          """{"from":"user3","id":"3-3","text":"lets go!"}"""
-        ))
+        c1 should contain theSameElementsAs Seq(
+          welcomeMessage,
+          messageJson(chatId=s"g#$groupName", from = "user2", id = "2-1", text = "hey!"),
+          messageJson(chatId=s"g#$groupName", from = "user2", id = "2-2", text = "ho!"),
+          messageJson(chatId=s"g#$groupName", from = "user2", id = "2-3", text = "lets go!"),
+          messageJson(chatId=s"g#$groupName", from = "user3", id = "3-1", text = "hey!"),
+          messageJson(chatId=s"g#$groupName", from = "user3", id = "3-2", text = "ho!"),
+          messageJson(chatId=s"g#$groupName", from = "user3", id = "3-3", text = "lets go!"),
+        )
 
-        assert(c2.toSet == Set(
-          """{"from":"","id":"","text":"You joined the chat"}""",
-          """{"from":"user1","id":"1-1","text":"hey!"}""",
-          """{"from":"user1","id":"1-2","text":"ho!"}""",
-          """{"from":"user1","id":"1-3","text":"lets go!"}""",
-          """{"from":"user3","id":"3-1","text":"hey!"}""",
-          """{"from":"user3","id":"3-2","text":"ho!"}""",
-          """{"from":"user3","id":"3-3","text":"lets go!"}"""
-        ))
+        c2 should contain theSameElementsAs Seq(
+          welcomeMessage,
+          messageJson(chatId = s"g#$groupName", from = "user1", id = "1-1", text = "hey!"),
+          messageJson(chatId = s"g#$groupName", from = "user1", id = "1-2", text = "ho!"),
+          messageJson(chatId = s"g#$groupName", from = "user1", id = "1-3", text = "lets go!"),
+          messageJson(chatId = s"g#$groupName", from = "user3", id = "3-1", text = "hey!"),
+          messageJson(chatId = s"g#$groupName", from = "user3", id = "3-2", text = "ho!"),
+          messageJson(chatId = s"g#$groupName", from = "user3", id = "3-3", text = "lets go!"),
+        )
 
-        assert(c3.toSet == Set(
-          """{"from":"","id":"","text":"You joined the chat"}""",
-          """{"from":"user1","id":"1-1","text":"hey!"}""",
-          """{"from":"user1","id":"1-2","text":"ho!"}""",
-          """{"from":"user1","id":"1-3","text":"lets go!"}""",
-          """{"from":"user2","id":"2-1","text":"hey!"}""",
-          """{"from":"user2","id":"2-2","text":"ho!"}""",
-          """{"from":"user2","id":"2-3","text":"lets go!"}"""
-        ))
+        c3 should contain theSameElementsAs Seq(
+          welcomeMessage,
+          messageJson(chatId = s"g#$groupName", from = "user1", id = "1-1", text = "hey!"),
+          messageJson(chatId = s"g#$groupName", from = "user1", id = "1-2", text = "ho!"),
+          messageJson(chatId = s"g#$groupName", from = "user1", id = "1-3", text = "lets go!"),
+          messageJson(chatId = s"g#$groupName", from = "user2", id = "2-1", text = "hey!"),
+          messageJson(chatId = s"g#$groupName", from = "user2", id = "2-2", text = "ho!"),
+          messageJson(chatId = s"g#$groupName", from = "user2", id = "2-3", text = "lets go!"),
+        )
 
         client1In.complete()
         client2In.complete()
