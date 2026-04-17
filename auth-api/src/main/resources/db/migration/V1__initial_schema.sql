@@ -1,0 +1,6 @@
+CREATE TABLE auth.chat_user (
+  id VARCHAR NOT NULL PRIMARY KEY,
+  username VARCHAR NOT NULL UNIQUE,
+  password BYTEA NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL
+);

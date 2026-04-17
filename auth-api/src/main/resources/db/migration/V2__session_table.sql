@@ -1,0 +1,8 @@
+CREATE TABLE auth.session (
+  id VARCHAR NOT NULL PRIMARY KEY,
+  user_id VARCHAR NOT NULL REFERENCES auth.chat_user(id),
+  token_hash BYTEA NOT NULL,
+  created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+  refreshed_at TIMESTAMP WITHOUT TIME ZONE,
+  expires_in INTEGER NOT NULL
+);
