@@ -2,23 +2,40 @@ package org.chats
 package repository
 
 import config.{DBSettings, Settings}
+import context.dataSource
+import db.MigrationManager
+import model.{Session, User}
 
 import com.dimafeng.testcontainers.PostgreSQLContainer
-import org.testcontainers.utility.DockerImageName
 import io.getquill.SnakeCase
 import io.getquill.jdbczio.Quill
-import org.chats.context.dataSource
-import org.chats.db.MigrationManager
-import org.chats.model.{Session, User}
-import zio.test.{Spec, TestEnvironment, ZIOSpecDefault, assertTrue}
+import org.scalactic.{Equality, Equivalence}
+import org.scalatest.matchers.should.Matchers
+import org.testcontainers.utility.DockerImageName
+import zio.test.{Spec, TestEnvironment, ZIOSpecDefault, assertCompletes}
 import zio.{Scope, ZIO, ZLayer}
+import org.scalactic.Explicitly.*
 
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.time.Instant
 import java.util.UUID
 
-object SessionRepositoryTest extends ZIOSpecDefault {
+val sessionEquivalence: Equality[Session] = (a, b) => {
+  b match {
+    case bS: Session =>
+      val tupleA = Tuple.fromProductTyped(a)
+      val tupleB = Tuple.fromProductTyped(bS)
+
+      tupleA.zip(tupleB).toList.forall {
+        case (arrA: Array[Byte], arrB: Array[Byte]) => arrA.sameElements(arrB)
+        case (x, y) => x == y
+      }
+    case _ => false
+  }
+}
+
+object SessionRepositoryTest extends ZIOSpecDefault with Matchers {
   val containerLayer = ZLayer.scoped {
     ZIO.acquireRelease(ZIO.attemptBlocking {
       val c = new PostgreSQLContainer(dockerImageNameOverride = Some(DockerImageName.parse("postgres:latest")))
@@ -68,7 +85,9 @@ object SessionRepositoryTest extends ZIOSpecDefault {
         _ <- ZIO.serviceWithZIO[SessionRepository](_.create(session))
         loaded <- ZIO.serviceWithZIO[SessionRepository](_.getSessionByTokenHash(hash))
       } yield {
-        assertTrue(loaded == session)
+        (loaded.get should equal (session)) (decided by sessionEquivalence)
+        assertCompletes
+        //assertTrue(loaded == Some(session))
       }
     }
       .provide(

@@ -1,2 +1,14 @@
 /.sbt/
 /local-dev/data/
+/auth-api/target/
+/.idea/
+/.bsp/
+/cli-client/target/
+/common-server/target/
+/messenger-api/
+/project/target/
+/target/
+/snapshots/
+/project/project/target/
+/chats-api/target/
+/local-dev/backend-simple/data/

@@ -1,7 +1,7 @@
 package org.chats
 package model
 
-import java.time.{Instant, ZonedDateTime}
+import java.time.Instant
 
 case class User(id: String, username: String, password: Array[Byte], createdAt: Instant)
 
