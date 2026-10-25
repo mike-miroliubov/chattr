@@ -1,4 +1,5 @@
 import { MessengerClient, type ConnectionStatus } from '../messenger/MessengerClient.ts'
+import { queryClient } from '../queryClient.ts'
 
 // Mirrors the CLI: logging in is just picking a user name (the APIs take it as the user id)
 // and opening the messenger websocket for it
@@ -63,6 +64,8 @@ export function logout() {
   unsubscribeStatus()
   state.messenger?.close()
   storeUserName(null)
+  // Don't show the next user anything cached for this one
+  queryClient.clear()
   setState(loggedOut)
 }
 

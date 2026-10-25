@@ -17,13 +17,13 @@ Server endpoints are the same two settings as the CLI's `chattr.server`, set as 
 | `VITE_CHATS_API_URL` | `/chats/api` | `http://localhost:8080/api` |
 | `VITE_MESSENGER_API_URL` | `/messenger/api` | `ws://localhost:8081/api` |
 
-The defaults are paths on the app's own origin. In dev, the Vite server proxies `/chats/*` and
-`/messenger/*` (incl. WebSocket) to the backend nginx at `http://localhost` (override with
-`CHATTR_BACKEND_URL`), see `local-dev/backend-simple`. Restart `npm run dev` after changing env files.
+The defaults are paths on the app's own origin: in deployment the nginx serves them, in dev
+the Vite server proxies them. The dev proxy strips the prefix like the nginx does; its targets are:
 
-## Other scripts
-```
-npm run build    # type-check + production build into dist/
-npm run lint     # oxlint
-npm run preview  # serve the production build
-```
+| Variable | Default | Example without nginx |
+|---|---|---|
+| `CHATTR_DEV_CHATS_TARGET` | `http://localhost/chats` | `http://localhost:8080` |
+| `CHATTR_DEV_MESSENGER_TARGET` | `http://localhost/messenger` | `http://localhost:8081` |
+
+Prefer the proxy over pointing `VITE_*` at the services directly, since `chats-api` doesn't send
+CORS headers. Restart `npm run dev` after changing env files.
