@@ -1,0 +1,25 @@
+.login {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(320px, calc(100% - 32px));
+  margin: 15vh auto 0;
+}
+
+.login h1,
+.login p {
+  margin: 0;
+}
+
+.login label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.875rem;
+}
+
+.login input,
+.login button {
+  font: inherit;
+  padding: 8px 12px;
+}
