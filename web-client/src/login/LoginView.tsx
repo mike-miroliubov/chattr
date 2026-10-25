@@ -1,32 +1,30 @@
-import { useState, type FormEvent } from 'react'
+import { UserOutlined } from '@ant-design/icons'
+import { Button, Card, Flex, Form, Input, Typography } from 'antd'
 import { login } from '../session/session.ts'
-import './LoginView.css'
+
+interface LoginForm {
+  userName: string
+}
 
 export function LoginView() {
-  const [userName, setUserName] = useState('')
-  const trimmed = userName.trim()
-
-  const handleSubmit = (event: FormEvent) => {
-    event.preventDefault()
-    if (trimmed) {
-      login(trimmed)
-    }
-  }
+  const handleFinish = ({ userName }: LoginForm) => login(userName.trim())
 
   return (
-    <form className="login" onSubmit={handleSubmit}>
-      <h1>Chattr</h1>
-      <p>Please log in</p>
-      <label>
-        Login
-        <input
-          value={userName}
-          onChange={(e) => setUserName(e.target.value)}
-          autoFocus
-          autoComplete="username"
-        />
-      </label>
-      <button type="submit" disabled={!trimmed}>Log in</button>
-    </form>
+    <Flex justify="center" style={{ paddingTop: '15vh' }}>
+      <Card style={{ width: 'min(360px, calc(100% - 32px))' }}>
+        <Typography.Title level={3} style={{ marginTop: 0 }}>Chattr</Typography.Title>
+        <Typography.Paragraph type="secondary">Please log in</Typography.Paragraph>
+        <Form<LoginForm> layout="vertical" onFinish={handleFinish} requiredMark={false}>
+          <Form.Item
+            label="Login"
+            name="userName"
+            rules={[{ required: true, whitespace: true, message: 'Enter your user name' }]}
+          >
+            <Input prefix={<UserOutlined />} autoFocus autoComplete="username" />
+          </Form.Item>
+          <Button type="primary" htmlType="submit" block>Log in</Button>
+        </Form>
+      </Card>
+    </Flex>
   )
 }
