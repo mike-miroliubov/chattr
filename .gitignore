@@ -1,2 +1,4 @@
 /.sbt/
 /local-dev/data/
+/web-client/node_modules/
+/web-client/dist/
